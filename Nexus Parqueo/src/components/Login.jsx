@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import UlacitLogo from '/src/assets/ulacit-logo.png';
+import UlacitBG from '/src/assets/ulacit-bg.png';
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -63,10 +65,11 @@ const Login = () => {
   };
 
   return (
-    <div className="min-h-screen bg-gray-100 flex items-center justify-center p-4">
+    <div className="min-h-screen bg-cover bg-center flex items-center justify-center p-4" style={{ backgroundImage: `url(${UlacitBG})`}}>
       <div className="bg-white rounded-lg shadow-md w-full max-w-md p-8">
+        <img src={UlacitLogo} alt="Ulacit Logo" className="mb-4"></img>
         <h1 className="text-2xl font-bold text-center text-gray-900 mb-8">
-          Login to Parqueo
+          Inicia Sesión en Parqueos ULACIT
         </h1>
 
         <form onSubmit={handleSubmit} className="space-y-6">
@@ -78,7 +81,7 @@ const Login = () => {
 
           <div className="space-y-2">
             <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-              Username
+              Nombre de Usuario
             </label>
             <input
               id="username"
@@ -87,13 +90,13 @@ const Login = () => {
               onChange={(e) => setUsername(e.target.value)}
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter your username"
+              placeholder="Ingrese su nombre de usuario"
             />
           </div>
 
           <div className="space-y-2">
             <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              Password
+              Contraseña
             </label>
             <input
               id="password"
@@ -102,7 +105,7 @@ const Login = () => {
               onChange={(e) => setPassword(e.target.value)}
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Enter your password"
+              placeholder="Ingrese su contraseña"
             />
           </div>
 
@@ -113,7 +116,7 @@ const Login = () => {
               ${loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} 
               focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
           >
-            {loading ? 'Logging in...' : 'Login'}
+            {loading ? 'Iniciando Sesión...' : 'Entrar'}
           </button>
         </form>
       </div>
