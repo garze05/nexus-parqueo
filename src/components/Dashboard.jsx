@@ -20,7 +20,7 @@ const Dashboard = () => {
     console.log('Logged out, storage cleared');
     
     // Redirect to login page
-    window.location.href = '/login';
+    window.location.href = '/Login';
   };
 
 return (
