@@ -1,42 +1,56 @@
-// server.js
 const express = require('express');
 const cors = require('cors');
 const sql = require('msnodesqlv8');
+const bcrypt = require('bcrypt');
 
 const app = express();
 
-// Middleware
 app.use(cors());
 app.use(express.json());
 
 const connectionString = "server=localhost;Database=testLogin;Trusted_Connection=Yes;Driver={SQL Server}";
+const SALTS = 12;
 
+
+const queryAsync = (query, params) => {
+    return new Promise((resolve, reject) => {
+        sql.query(connectionString, query, params, (err, rows) => {
+            if (err) reject(err);
+            else resolve(rows);
+        });
+    });
+};
 
 // Login endpoint
-app.post('/api/auth/login', (req, res) => {
+app.post('/api/auth/login', async (req, res) => {
     const { username, password } = req.body;
-
+    
     if (!username || !password) {
-        return res.status(400).json({ error: 'Username and password are required.' });
+        return res.status(400).json({ error: 'Usuario y contraseña son requeridos' });
     }
 
-    const query = "SELECT * FROM Users WHERE username = ?";
-
-    sql.query(connectionString, query, [username], (err, rows) => {
-        if (err) {
-            console.error('Database Error:', err);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
+    try {
+        const query = "SELECT * FROM Users WHERE username = ?";
+        const rows = await queryAsync(query, [username]);
+        
+        // Debug logging
+        console.log('Query results:', rows);
+        console.log('First user:', rows?.[0]);
 
         if (!rows || rows.length === 0) {
-            return res.status(401).json({ error: 'Invalid username' });
+            return res.status(401).json({ error: 'Usuario o contraseña invalido' });
         }
 
         const user = rows[0];
+        
+        // Debug logging
+        console.log('User object:', user);
+        console.log('Password hash:', user.password_hash);
 
-        // Plain text password comparison
-        if (password !== user.password_hash) {
-            return res.status(401).json({ error: 'Invalid password' });
+        const match = await bcrypt.compare(password, user.password_hash);
+        
+        if (!match) {
+            return res.status(401).json({ error: 'Usuario o contraseña invalido' });
         }
 
         res.json({
@@ -47,41 +61,50 @@ app.post('/api/auth/login', (req, res) => {
                 role: user.role
             }
         });
-    });
+    } catch (err) {
+        console.error('Database Error:', err);
+        return res.status(500).json({ error: 'Error interno' });
+    }
 });
 
-// Registration endpoint
-app.post('/api/auth/register', (req, res) => {
+// Registration 
+app.post('/api/auth/register', async (req, res) => {
     const { username, password } = req.body;
 
     if (!username || !password) {
-        return res.status(400).json({ error: 'Username and password are required.' });
+        return res.status(400).json({ error: 'Usuario y contraseña son requeridos' });
     }
 
-    // Check if user already exists
-    const checkQuery = "SELECT * FROM Users WHERE username = ?";
-    sql.query(connectionString, checkQuery, [username], (err, rows) => {
-        if (err) {
-            console.error('Database Error:', err);
-            return res.status(500).json({ error: 'Internal server error' });
-        }
-
-        if (rows && rows.length > 0) {
-            return res.status(400).json({ error: 'Username already exists' });
-        }
-
-        // Insert new user with plain text password
-        const insertQuery = "INSERT INTO Users (username, password_hash) VALUES (?, ?)";
-        sql.query(connectionString, insertQuery, [username, password], (err, result) => {
-            if (err) {
-                console.error('Database Error:', err);
-                return res.status(500).json({ error: 'Internal server error' });
-            }
-
-            res.status(201).json({ message: 'User created successfully' });
+    const queryAsync = (query, params) => {
+        return new Promise((resolve, reject) => {
+            sql.query(connectionString, query, params, (err, rows) => {
+                if (err) reject(err);
+                else resolve(rows);
+            });
         });
-    });
+    };
+
+    try {
+        // Check if user already exists
+        const checkQuery = "SELECT * FROM Users WHERE username = ?";
+        const existingUsers = await queryAsync(checkQuery, [username]);
+
+        if (existingUsers && existingUsers.length > 0) {
+            return res.status(400).json({ error: 'Ya existe el usuario' });
+        }
+
+        const hashedPassword = await bcrypt.hash(password, SALTS);
+
+        const insertQuery = "INSERT INTO Users (username, password_hash) VALUES (?, ?)";
+        await queryAsync(insertQuery, [username, hashedPassword]);
+
+        res.status(201).json({ message: 'Usuario creado con exito' });
+    } catch (err) {
+        console.error('Database Error:', err);
+        return res.status(500).json({ error: 'Error interno' });
+    }
 });
+
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
