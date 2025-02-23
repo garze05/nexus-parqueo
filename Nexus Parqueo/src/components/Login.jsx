@@ -1,4 +1,6 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
+import { useAuth } from '/src/auth/AuthContext';
+import { useNavigate } from 'react-router-dom';
 import UlacitLogo from '/src/assets/ulacit-logo.png';
 import UlacitBG from '/src/assets/ulacit-bg.png';
 
@@ -7,13 +9,16 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const { login } = useAuth();
+  const navigate = useNavigate();
+
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('Form submitted');
     setLoading(true);
     setError('');
-
+  
     try {
       console.log('Starting login attempt...');
       console.log('Sending credentials:', { username });
@@ -42,10 +47,10 @@ const Login = () => {
 
       if (data.success) {
         console.log('Login successful, preparing to redirect');
-        localStorage.setItem('isAuthenticated', 'true');
+        console.log('User data:', data.user);
+        login(data.user);
         localStorage.setItem('user', JSON.stringify(data.user));
-        console.log('Local storage set, redirecting...');
-        window.location.href = '/dashboard';
+        navigate('/dashboard');
       } else {
         console.log('Login unsuccessful:', data);
         throw new Error('Login unsuccessful');

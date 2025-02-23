@@ -43,7 +43,8 @@ app.post('/api/auth/login', (req, res) => {
             success: true,
             user: {
                 id: user.id,
-                username: user.username
+                username: user.username,
+                role: user.role
             }
         });
     });
