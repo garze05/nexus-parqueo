@@ -5,6 +5,7 @@ import { PERMISSIONS, ROLES } from './auth/roles';
 import Login from './components/Login';
 import Dashboard from './components/Dashboard';
 import Register from './components/Register';
+import RegisterVehicle from './components/RegisterVehicle';
 
 function App() {
 
@@ -19,6 +20,7 @@ function App() {
                     <Route path="/login" element={<Login />} />
                     <Route path="/register" element={<ProtectedRoute requiredRole={ROLES.ADMIN}><Register /></ProtectedRoute>} />
                     <Route path="/dashboard" element={<ProtectedRoute requiredPermission={PERMISSIONS.VIEW_DASHBOARD}><Dashboard /></ProtectedRoute>} />
+                    <Route path="/register-vehicle" element={<ProtectedRoute requiredRole={ROLES.ADMIN}><RegisterVehicle /></ProtectedRoute>} />
                 </Routes>
             </Router>
         </AuthProvider>

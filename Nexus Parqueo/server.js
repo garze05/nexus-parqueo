@@ -105,6 +105,39 @@ app.post('/api/auth/register', async (req, res) => {
     }
 });
 
+// Registra vehículos
+app.post('/api/vehicles/register', (req, res) => {
+    const { plate, brand, owner } = req.body;
+
+    if (!plate || !brand || !owner) {
+        return res.status(400).json({ error: 'Todos los campos son obligatorios.' });
+    }
+
+    // Verifica placa existente
+    const checkQuery = "SELECT * FROM Vehicles WHERE plate = ?";
+    sql.query(connectionString, checkQuery, [plate], (err, rows) => {
+        if (err) {
+            console.error('Database Error:', err);
+            return res.status(500).json({ error: 'Error interno del servidor' });
+        }
+
+        if (rows && rows.length > 0) {
+            return res.status(400).json({ error: 'Este vehículo ya está registrado' });
+        }
+
+        // Inserta nuevo vehículo
+        const insertQuery = "INSERT INTO Vehicles (plate, brand, owner) VALUES (?, ?, ?)";
+        sql.query(connectionString, insertQuery, [plate, brand, owner], (err, result) => {
+            if (err) {
+                console.error('Database Error:', err);
+                return res.status(500).json({ error: 'Error interno del servidor' });
+            }
+
+            res.status(201).json({ message: 'Vehículo registrado exitosamente' });
+        });
+    });
+})
+
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
