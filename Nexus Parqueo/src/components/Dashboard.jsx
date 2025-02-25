@@ -8,8 +8,9 @@ const Dashboard = () => {
   // Retrieve the user from localStorage and authenticate
   const userString = localStorage.getItem('user');
   let user = null;
-  const { hasRole } = useAuth();
+  const { hasRole, hasPermission } = useAuth();
   const navigate = useNavigate();
+  
 
   if (userString) {
     user = JSON.parse(userString);
@@ -45,6 +46,14 @@ return (
           </button>
         </div>
       )}
+      {hasPermission('check_vehicle')&&(<div className="mt-5 flex flex-col gap-4"> {}
+          <button 
+            onClick={() => navigate('/check-vehicle')} 
+            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow-md"
+          >
+            Revision de Vehiculos
+          </button>
+        </div>)}
     </div>
 );
 };

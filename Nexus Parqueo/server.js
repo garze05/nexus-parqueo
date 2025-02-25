@@ -46,6 +46,7 @@ app.post('/api/auth/login', async (req, res) => {
         // Debug logging
         console.log('User object:', user);
         console.log('Password hash:', user.password_hash);
+        console.log('User role:', user.role)
 
         const match = await bcrypt.compare(password, user.password_hash);
         
@@ -69,35 +70,30 @@ app.post('/api/auth/login', async (req, res) => {
 
 // Registration 
 app.post('/api/auth/register', async (req, res) => {
-    const { username, password } = req.body;
-
+    const { username, password, role } = req.body;
+    
     if (!username || !password) {
         return res.status(400).json({ error: 'Usuario y contraseña son requeridos' });
     }
-
-    const queryAsync = (query, params) => {
-        return new Promise((resolve, reject) => {
-            sql.query(connectionString, query, params, (err, rows) => {
-                if (err) reject(err);
-                else resolve(rows);
-            });
-        });
-    };
-
+    
+    // Default to 'user' role if none provided
+    const userRole = role || 'user';
+    
     try {
         // Check if user already exists
         const checkQuery = "SELECT * FROM Users WHERE username = ?";
         const existingUsers = await queryAsync(checkQuery, [username]);
-
+        
         if (existingUsers && existingUsers.length > 0) {
             return res.status(400).json({ error: 'Ya existe el usuario' });
         }
-
+        
         const hashedPassword = await bcrypt.hash(password, SALTS);
-
-        const insertQuery = "INSERT INTO Users (username, password_hash) VALUES (?, ?)";
-        await queryAsync(insertQuery, [username, hashedPassword]);
-
+        
+        // Update the SQL query to include the role
+        const insertQuery = "INSERT INTO Users (username, password_hash, role) VALUES (?, ?, ?)";
+        await queryAsync(insertQuery, [username, hashedPassword, role]);
+        
         res.status(201).json({ message: 'Usuario creado con exito' });
     } catch (err) {
         console.error('Database Error:', err);
@@ -115,7 +111,7 @@ app.post('/api/vehicles/register', (req, res) => {
 
     // Verifica placa existente
     const checkQuery = "SELECT * FROM Vehicles WHERE plate = ?";
-    sql.query(connectionString, checkQuery, [plate], (err, rows) => {
+sql.query(connectionString, checkQuery, [plate], (err, rows) => {
         if (err) {
             console.error('Database Error:', err);
             return res.status(500).json({ error: 'Error interno del servidor' });
@@ -138,6 +134,38 @@ app.post('/api/vehicles/register', (req, res) => {
     });
 })
 
+
+//Buscar Vehiculo
+app.get('/api/vehicles/check/:plate', (req, res) => {
+    const { plate } = req.params;
+    
+    if (!plate) {
+        return res.status(400).json({ error: 'La placa es obligatoria.' });
+    }
+    
+    // Query to check if vehicle exists
+    const checkQuery = "SELECT * FROM Vehicles WHERE plate = ?";
+    
+    sql.query(connectionString, checkQuery, [plate], (err, rows) => {
+        if (err) {
+            console.error('Database Error:', err);
+            return res.status(500).json({ error: 'Error interno del servidor' });
+        }
+        
+        // If vehicle is found, return its data
+        if (rows && rows.length > 0) {
+            return res.status(200).json({ 
+                message: 'Vehículo encontrado', 
+                vehicle: rows[0] 
+            });
+        }
+        
+        // If vehicle is not found, return 404 status
+        return res.status(404).json({ 
+            message: 'Vehículo no encontrado' 
+        });
+    });
+});
 
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {

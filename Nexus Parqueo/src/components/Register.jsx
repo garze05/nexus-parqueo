@@ -34,7 +34,7 @@ const Register = () => {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ username, password })
+        body: JSON.stringify({ username, password, role })
       });
 
       console.log('Raw response received:', response);
@@ -51,7 +51,8 @@ const Register = () => {
       console.log('Registration successful:', data);
         setRegisteredUser({
             username: username,
-            password: password
+            password: password,
+            role: role
         });
         setShowSuccessModal(true);
 
@@ -169,6 +170,7 @@ const Register = () => {
         <div className="bg-gray-50 p-4 rounded-md">
           <p className="mb-2"><span className="font-semibold">Usuario:</span> {registeredUser?.username}</p>
           <p><span className="font-semibold">Contraseña:</span> {registeredUser?.password}</p>
+          <p><span className="front-semibold">Rol:</span> {registeredUser?.role}</p>
         </div>
       </div>
       <div className="flex justify-end">
