@@ -1,192 +1,278 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import UlacitLogo from '/src/assets/ulacit-logo.png';
-import UlacitBG from '/src/assets/ulacit-bg.png';
+import { ROLES } from '../auth/roles';
 
 const Register = () => {
-  const [username, setUsername] = useState('');
-  const [password, setPassword] = useState('');
-  const [role, setRole] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [error, setError] = useState('');
+  // State for form data
+  const [formData, setFormData] = useState({
+    name: '',
+    email: '',
+    birthDate: '',
+    identification: '',
+    studentId: '',
+    role: 'user',
+  });
+
+  // State for UI
   const [loading, setLoading] = useState(false);
-  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [error, setError] = useState('');
+  const [success, setSuccess] = useState(false);
   const [registeredUser, setRegisteredUser] = useState(null);
 
+  const navigate = useNavigate();
+
+  // Handle input changes
+  const handleChange = (e) => {
+    const { name, value } = e.target;
+    setFormData(prevState => ({
+      ...prevState,
+      [name]: value
+    }));
+  };
+
+  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Registration form submitted');
-    
-    // Validate passwords match
-    if (password !== confirmPassword) {
-      setError('Las contraseñas no coinciden');
-      return;
-    }
-
     setLoading(true);
     setError('');
 
     try {
-      console.log('Starting registration attempt...');
-      console.log('Sending credentials:', { username });
-
+      // Call your API to register the user
       const response = await fetch('http://localhost:3001/api/auth/register', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}` // Add token if using JWT
         },
-        body: JSON.stringify({ username, password, role })
+        body: JSON.stringify({
+          nombre: formData.name,
+          correo_electronico: formData.email,
+          fecha_nacimiento: formData.birthDate,
+          identificacion: formData.identification,
+          numero_carne: formData.studentId || null, // Optional
+          rol_id: getRoleId(formData.role),
+          // Default password will be set by the server ("Ulacit123")
+        })
       });
 
-      console.log('Raw response received:', response);
-      console.log('Response status:', response.status);
-
       if (!response.ok) {
-        console.log('Response not ok');
         const errorData = await response.json();
-        console.log('Error data:', errorData);
-        throw new Error(errorData.error || 'Registration failed');
+        throw new Error(errorData.message || 'Error al registrar usuario');
       }
 
       const data = await response.json();
-      console.log('Registration successful:', data);
-        setRegisteredUser({
-            username: username,
-            password: password,
-            role: role
-        });
-        setShowSuccessModal(true);
-
       
+      // Set success and registered user data
+      setSuccess(true);
+      setRegisteredUser({
+        name: formData.name,
+        email: formData.email,
+        role: formData.role,
+        defaultPassword: 'Ulacit123' // This is the default password
+      });
+
+      // Reset form
+      setFormData({
+        name: '',
+        email: '',
+        birthDate: '',
+        identification: '',
+        studentId: '',
+        role: 'user',
+      });
     } catch (err) {
-      console.log('Caught error:', err);
       console.error('Registration error:', err);
-      if (err.message === 'Failed to fetch') {
-        setError('Could not connect to the server. Please ensure the backend is running.');
-      } else {
-        setError(err.message || 'Registration failed. Please try again.');
-      }
+      setError(err.message || 'Error al registrar usuario. Inténtelo de nuevo.');
     } finally {
-      console.log('Registration attempt completed');
       setLoading(false);
     }
   };
 
-  return (
-    <div className="min-h-screen bg-cover bg-center flex items-center justify-center p-4" style={{ backgroundImage: `url(${UlacitBG})`}}>
-      <div className="bg-white rounded-lg shadow-md w-full max-w-md p-8">
-        <img src={UlacitLogo} alt="Ulacit Logo" className="mb-4" />
-        <h1 className="text-2xl font-bold text-center text-gray-900 mb-8">
-          Regístrate en Parqueos ULACIT
-        </h1>
+  // Helper function to map role string to role ID
+  const getRoleId = (roleString) => {
+    switch (roleString) {
+      case ROLES.ADMIN:
+        return 1;
+      case ROLES.STAFF:
+        return 2;
+      case ROLES.USER:
+        return 3;
+      default:
+        return 3; // Default to user
+    }
+  };
 
-        <form onSubmit={handleSubmit} className="space-y-6">
+  // Close success modal
+  const handleCloseModal = () => {
+    setSuccess(false);
+    setRegisteredUser(null);
+  };
+
+  return (
+    <div className="min-h-screen bg-gray-100 flex flex-col p-6">
+      {/* Header */}
+      <header className="bg-white shadow-md p-4 mb-6 rounded-lg flex justify-between items-center">
+        <div className="flex items-center">
+          <img src={UlacitLogo} alt="ULACIT Logo" className="h-10 mr-4" />
+          <h1 className="text-xl font-bold text-gray-800">Sistema de Parqueos ULACIT</h1>
+        </div>
+        <button 
+          onClick={() => navigate('/dashboard')}
+          className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded-md transition-colors"
+        >
+          Volver al Dashboard
+        </button>
+      </header>
+
+      {/* Main Content */}
+      <div className="flex-grow flex flex-col items-center justify-center">
+        <div className="bg-white rounded-lg shadow-md p-8 max-w-md w-full">
+          <h2 className="text-2xl font-bold text-center text-gray-900 mb-6">
+            Registrar Nuevo Usuario
+          </h2>
+
           {error && (
-            <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+            <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
               <span className="block sm:inline">{error}</span>
             </div>
           )}
 
-          <div className="space-y-2">
-            <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-              Nombre de Usuario
-            </label>
-            <input
-              id="username"
-              type="text"
-              value={username}
-              onChange={(e) => setUsername(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Ingrese su nombre de usuario"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="password" className="block text-sm font-medium text-gray-700">
-              Contraseña
-            </label>
-            <input
-              id="password"
-              type="password"
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Ingrese su contraseña"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="confirmPassword" className="block text-sm font-medium text-gray-700">
-              Confirmar Contraseña
-            </label>
-            <input
-              id="confirmPassword"
-              type="password"
-              value={confirmPassword}
-              onChange={(e) => setConfirmPassword(e.target.value)}
-              required
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Confirme su contraseña"
-            />
-          </div>
-
-          <div className="space-y-2">
-            <label htmlFor="role" className="block text-sm font-medium text-gray-700">
-                Rol de Usuario
-            </label>
-            <select
-                id="role"
-                value={role}
-                onChange={(e) => setRole(e.target.value)}
+          <form onSubmit={handleSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="name" className="block text-sm font-medium text-gray-700">
+                Nombre Completo
+              </label>
+              <input
+                id="name"
+                name="name"
+                type="text"
                 required
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-            >
-                
-                <option value="user">Usuario</option>
-                <option value="admin">Administrador</option>
-                <option value="staff">Guarda de Seguridad</option>
-                </select>
+                value={formData.name}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
             </div>
 
-          <button
-            type="submit"
-            disabled={loading}
-            className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white 
-              ${loading ? 'bg-blue-400' : 'bg-blue-600 hover:bg-blue-700'} 
-              focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
-          >
-            {loading ? 'Registrando...' : 'Registrar'}
-          </button>
-        </form>
-      </div>
+            <div>
+              <label htmlFor="email" className="block text-sm font-medium text-gray-700">
+                Correo Electrónico
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                value={formData.email}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+              <p className="text-xs text-gray-500 mt-1">Este será el nombre de usuario para iniciar sesión</p>
+            </div>
 
-      {showSuccessModal && (
-  <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-    <div className="bg-white rounded-lg p-6 max-w-md w-full">
-      <h2 className="text-xl font-bold text-gray-900 mb-4">¡Registro Exitoso!</h2>
-      <div className="mb-4">
-        <p className="text-gray-600 mb-2">Usuario registrado con éxito. Por favor guarde esta información:</p>
-        <div className="bg-gray-50 p-4 rounded-md">
-          <p className="mb-2"><span className="font-semibold">Usuario:</span> {registeredUser?.username}</p>
-          <p><span className="font-semibold">Contraseña:</span> {registeredUser?.password}</p>
-          <p><span className="front-semibold">Rol:</span> {registeredUser?.role}</p>
+            <div>
+              <label htmlFor="birthDate" className="block text-sm font-medium text-gray-700">
+                Fecha de Nacimiento
+              </label>
+              <input
+                id="birthDate"
+                name="birthDate"
+                type="date"
+                required
+                value={formData.birthDate}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="identification" className="block text-sm font-medium text-gray-700">
+                Identificación
+              </label>
+              <input
+                id="identification"
+                name="identification"
+                type="text"
+                required
+                value={formData.identification}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="studentId" className="block text-sm font-medium text-gray-700">
+                Número de Carné (opcional)
+              </label>
+              <input
+                id="studentId"
+                name="studentId"
+                type="text"
+                value={formData.studentId}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="role" className="block text-sm font-medium text-gray-700">
+                Rol
+              </label>
+              <select
+                id="role"
+                name="role"
+                required
+                value={formData.role}
+                onChange={handleChange}
+                className="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+              >
+                <option value={ROLES.USER}>Estudiante</option>
+                <option value={ROLES.STAFF}>Oficial de Seguridad</option>
+                <option value={ROLES.ADMIN}>Administrador</option>
+              </select>
+            </div>
+
+            <div className="pt-4">
+              <button
+                type="submit"
+                disabled={loading}
+                className={`w-full flex justify-center py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white ${
+                  loading ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700'
+                } focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500`}
+              >
+                {loading ? 'Registrando...' : 'Registrar Usuario'}
+              </button>
+            </div>
+          </form>
         </div>
       </div>
-      <div className="flex justify-end">
-        <button
-          onClick={() => {
-            setShowSuccessModal(false);
-            window.location.href = '/dashboard';
-          }}
-          className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded"
-        >
-          Continuar
-        </button>
-      </div>
-    </div>
-  </div>
-)}
+
+      {/* Success Modal */}
+      {success && registeredUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">¡Registro Exitoso!</h2>
+            <div className="mb-4">
+              <p className="text-gray-600 mb-2">Usuario registrado con éxito. Detalles de la cuenta:</p>
+              <div className="bg-gray-50 p-4 rounded-md">
+                <p className="mb-2"><span className="font-semibold">Nombre:</span> {registeredUser.name}</p>
+                <p className="mb-2"><span className="font-semibold">Correo:</span> {registeredUser.email}</p>
+                <p className="mb-2"><span className="font-semibold">Rol:</span> {registeredUser.role}</p>
+                <p className="mb-2"><span className="font-semibold">Contraseña temporal:</span> {registeredUser.defaultPassword}</p>
+              </div>
+              <p className="text-sm text-gray-500 mt-2">El usuario deberá cambiar su contraseña en el primer inicio de sesión.</p>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={handleCloseModal}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded"
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

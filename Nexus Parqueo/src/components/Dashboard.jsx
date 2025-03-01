@@ -1,61 +1,341 @@
-import React from 'react';
-import UlacitLogo from '/src/assets/ulacit-logo.png';
-import { useAuth } from '/src/auth/AuthContext';
+import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../auth/AuthContext';
+import UlacitLogo from '/src/assets/ulacit-logo.png';
 import LogoutButton from './LogoutButton';
+import { ROLES, PERMISSIONS } from '../auth/roles';
 
 const Dashboard = () => {
-  // Retrieve the user from localStorage and authenticate
-  const userString = localStorage.getItem('user');
-  let user = null;
-  const { hasRole, hasPermission } = useAuth();
+  const { user, hasRole, hasPermission } = useAuth();
   const navigate = useNavigate();
-  
+  const [parkingOccupation, setParkingOccupation] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState('');
 
-  if (userString) {
-    user = JSON.parse(userString);
-    console.log('Retrieved user:', user);
-  } else {
-    console.log('No user found in localStorage.');
-  }
+  // Fetch parking occupation if user has permission
+  useEffect(() => {
+    const fetchParkingOccupation = async () => {
+      if (hasPermission(PERMISSIONS.VIEW_DASHBOARD)) {
+        setLoading(true);
+        setError('');
+        
+        try {
+          // This is a mock implementation - in production, replace with actual API call
+          // Simulating API response delay
+          setTimeout(() => {
+            // Mock data for parking occupation
+            const mockData = [
+              {
+                parqueo_id: 1,
+                nombre_parqueo: 'Parqueo Principal',
+                capacidad_regulares: 100,
+                capacidad_motos: 20,
+                capacidad_ley7600: 5,
+                espacios_regulares_ocupados: 75,
+                espacios_motos_ocupados: 12,
+                espacios_ley7600_ocupados: 2
+              },
+              {
+                parqueo_id: 2,
+                nombre_parqueo: 'Parqueo Secundario',
+                capacidad_regulares: 50,
+                capacidad_motos: 10,
+                capacidad_ley7600: 3,
+                espacios_regulares_ocupados: 20,
+                espacios_motos_ocupados: 5,
+                espacios_ley7600_ocupados: 1
+              },
+              {
+                parqueo_id: 3,
+                nombre_parqueo: 'Parqueo Torre',
+                capacidad_regulares: 70,
+                capacidad_motos: 15,
+                capacidad_ley7600: 4,
+                espacios_regulares_ocupados: 65,
+                espacios_motos_ocupados: 10,
+                espacios_ley7600_ocupados: 3
+              }
+            ];
+            
+            setParkingOccupation(mockData);
+            setLoading(false);
+          }, 1000);
+          
+          /* Uncomment for actual API integration
+          const response = await fetch('http://localhost:3001/api/parkings/occupation', {
+            headers: {
+              'Authorization': `Bearer ${localStorage.getItem('token')}`
+            }
+          });
+          
+          if (!response.ok) {
+            throw new Error('Error al obtener los datos de ocupación');
+          }
+          
+          const data = await response.json();
+          setParkingOccupation(data);
+          */
+        } catch (error) {
+          console.error('Error fetching parking occupation:', error);
+          setError('Error al cargar los datos de ocupación');
+          setLoading(false);
+        }
+      }
+    };
+    
+    fetchParkingOccupation();
+  }, [hasPermission]);
 
-return (
-    // Add a background image to the dashboard
-
-    <div className="p-5 flex flex-col justify-center items-center">
-      <LogoutButton />
-        <img src={UlacitLogo} alt="Ulacit Logo" />
-        <h1 className="mt-10 font-bold text-4xl">Bienvenido a Parqueos ULACIT</h1>
-        <p className="mt-5 text-xl font-semibold">
-            Sesión iniciada como: {user ? user.username : 'Desconocido'}
-        </p>
-        {hasRole('admin') && (
-        <div className="mt-5 flex flex-col gap-4"> {/* 🔹 Se añadió un <div> contenedor */}
-          <button 
-            onClick={() => navigate('/register')} 
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow-md"
-          >
-            Registrar Usuario
-          </button>
-
-          <button 
-            onClick={() => navigate('/register-vehicle')} 
-            className="bg-green-600 hover:bg-green-700 text-white font-bold py-2 px-4 rounded shadow-md"
-          >
-            Registrar Vehículo
-          </button>
+  return (
+    <div className="min-h-screen bg-gray-100">
+      <nav className="bg-white shadow-md p-4">
+        <div className="flex justify-between items-center">
+          <div className="flex items-center">
+            <img src={UlacitLogo} alt="Ulacit Logo" className="h-10 mr-4" />
+            <h1 className="text-xl font-bold text-gray-800">Sistema de Parqueos ULACIT</h1>
+          </div>
+          <LogoutButton />
         </div>
-      )}
-      {hasPermission('check_vehicle')&&(<div className="mt-5 flex flex-col gap-4"> {}
-          <button 
-            onClick={() => navigate('/check-vehicle')} 
-            className="bg-blue-600 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded shadow-md"
-          >
-            Revision de Vehiculos
-          </button>
-        </div>)}
+      </nav>
+      
+      <div className="container mx-auto p-6">
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-2xl font-semibold mb-4">
+            Bienvenido, {user ? user.username : 'Usuario'}
+          </h2>
+          <p className="text-gray-600">
+            Rol: <span className="font-medium">{user ? user.role : 'Desconocido'}</span>
+          </p>
+        </div>
+        
+        {/* Quick Actions Section */}
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h3 className="text-xl font-semibold mb-4">Acciones Rápidas</h3>
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            {hasRole(ROLES.ADMIN) && (
+              <>
+                <button 
+                  onClick={() => navigate('/register')}
+                  className="p-4 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors flex flex-col items-center"
+                >
+                  <span className="text-2xl mb-2">👥</span>
+                  <span className="font-medium">Registrar Usuario</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/manage-users')}
+                  className="p-4 bg-violet-100 rounded-lg hover:bg-violet-200 transition-colors flex flex-col items-center"
+                >
+                  <span className="text-2xl mb-2">👤</span>
+                  <span className="font-medium">Administrar Usuarios</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/manage-vehicles')}
+                  className="p-4 bg-indigo-100 rounded-lg hover:bg-indigo-200 transition-colors flex flex-col items-center"
+                >
+                  <span className="text-2xl mb-2">🚗</span>
+                  <span className="font-medium">Administrar Vehículos</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/parking-lots')}
+                  className="p-4 bg-green-100 rounded-lg hover:bg-green-200 transition-colors flex flex-col items-center"
+                >
+                  <span className="text-2xl mb-2">🅿️</span>
+                  <span className="font-medium">Gestionar Parqueos</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/parking-stats')}
+                  className="p-4 bg-teal-100 rounded-lg hover:bg-teal-200 transition-colors flex flex-col items-center"
+                >
+                  <span className="text-2xl mb-2">📈</span>
+                  <span className="font-medium">Estadísticas de Uso</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/reports/failed-entries')}
+                  className="p-4 bg-amber-100 rounded-lg hover:bg-amber-200 transition-colors flex flex-col items-center"
+                >
+                  <span className="text-2xl mb-2">🚫</span>
+                  <span className="font-medium">Intentos Fallidos</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/system-settings')}
+                  className="p-4 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex flex-col items-center"
+                >
+                  <span className="text-2xl mb-2">⚙️</span>
+                  <span className="font-medium">Configuración</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/system-logs')}
+                  className="p-4 bg-red-100 rounded-lg hover:bg-red-200 transition-colors flex flex-col items-center"
+                >
+                  <span className="text-2xl mb-2">📋</span>
+                  <span className="font-medium">Bitácora del Sistema</span>
+                </button>
+              </>
+            )}
+            
+            {(hasRole(ROLES.STAFF) || hasRole(ROLES.ADMIN)) && (
+              <>
+                <button 
+                  onClick={() => navigate('/vehicle-control')}
+                  className="p-4 bg-indigo-100 rounded-lg hover:bg-indigo-200 transition-colors flex flex-col items-center"
+                >
+                  <span className="text-2xl mb-2">🚗</span>
+                  <span className="font-medium">Control de Vehículos</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/vehicle-entry')}
+                  className="p-4 bg-emerald-100 rounded-lg hover:bg-emerald-200 transition-colors flex flex-col items-center"
+                >
+                  <span className="text-2xl mb-2">🚪</span>
+                  <span className="font-medium">Ingreso de Vehículos</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/vehicle-exit')}
+                  className="p-4 bg-orange-100 rounded-lg hover:bg-orange-200 transition-colors flex flex-col items-center"
+                >
+                  <span className="text-2xl mb-2">🚶</span>
+                  <span className="font-medium">Salida de Vehículos</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/select-parking')}
+                  className="p-4 bg-purple-100 rounded-lg hover:bg-purple-200 transition-colors flex flex-col items-center"
+                >
+                  <span className="text-2xl mb-2">🔄</span>
+                  <span className="font-medium">Cambiar Parqueo</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/staff-reports')}
+                  className="p-4 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors flex flex-col items-center"
+                >
+                  <span className="text-2xl mb-2">📊</span>
+                  <span className="font-medium">Reportes de Ocupación</span>
+                </button>
+              </>
+            )}
+            
+            {(hasRole(ROLES.USER) || hasRole(ROLES.STAFF)) && (
+              <>
+                <button 
+                  onClick={() => navigate('/my-vehicles')}
+                  className="p-4 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors flex flex-col items-center"
+                >
+                  <span className="text-2xl mb-2">🚗</span>
+                  <span className="font-medium">Mis Vehículos</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/history')}
+                  className="p-4 bg-green-100 rounded-lg hover:bg-green-200 transition-colors flex flex-col items-center"
+                >
+                  <span className="text-2xl mb-2">📅</span>
+                  <span className="font-medium">Historial de Uso</span>
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+        
+        {/* Parking Occupation Section */}
+        {hasPermission(PERMISSIONS.VIEW_DASHBOARD) && (
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h3 className="text-xl font-semibold mb-4">Ocupación de Parqueos</h3>
+            
+            {loading && (
+              <div className="flex justify-center p-4">
+                <div className="animate-spin rounded-full h-10 w-10 border-t-2 border-b-2 border-blue-500"></div>
+              </div>
+            )}
+            
+            {error && (
+              <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative" role="alert">
+                <span className="block sm:inline">{error}</span>
+              </div>
+            )}
+            
+            {!loading && !error && parkingOccupation.length > 0 && (
+              <div className="overflow-x-auto">
+                <table className="min-w-full bg-white">
+                  <thead className="bg-gray-100">
+                    <tr>
+                      <th className="py-2 px-4 text-left">Parqueo</th>
+                      <th className="py-2 px-4 text-center">Regulares</th>
+                      <th className="py-2 px-4 text-center">Motos</th>
+                      <th className="py-2 px-4 text-center">Ley 7600</th>
+                      <th className="py-2 px-4 text-center">% Ocupación</th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-gray-200">
+                    {parkingOccupation.map((parking) => {
+                      const totalSpaces = parking.capacidad_regulares + parking.capacidad_motos + parking.capacidad_ley7600;
+                      const totalOccupied = parking.espacios_regulares_ocupados + parking.espacios_motos_ocupados + parking.espacios_ley7600_ocupados;
+                      const occupationPercentage = (totalOccupied / totalSpaces * 100).toFixed(1);
+                      
+                      return (
+                        <tr key={parking.parqueo_id}>
+                          <td className="py-2 px-4 font-medium">{parking.nombre_parqueo}</td>
+                          <td className="py-2 px-4 text-center">
+                            {parking.espacios_regulares_ocupados} / {parking.capacidad_regulares}
+                          </td>
+                          <td className="py-2 px-4 text-center">
+                            {parking.espacios_motos_ocupados} / {parking.capacidad_motos}
+                          </td>
+                          <td className="py-2 px-4 text-center">
+                            {parking.espacios_ley7600_ocupados} / {parking.capacidad_ley7600}
+                          </td>
+                          <td className="py-2 px-4 text-center">
+                            <div className="w-full bg-gray-200 rounded-full h-2.5">
+                              <div 
+                                className={`h-2.5 rounded-full ${
+                                  occupationPercentage < 70 ? 'bg-green-600' : 
+                                  occupationPercentage < 90 ? 'bg-yellow-500' : 'bg-red-600'
+                                }`}
+                                style={{ width: `${occupationPercentage}%` }}
+                              ></div>
+                            </div>
+                            <span className="text-sm">{occupationPercentage}%</span>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                  </tbody>
+                </table>
+              </div>
+            )}
+            
+            {!loading && !error && parkingOccupation.length === 0 && (
+              <div className="text-center p-4 text-gray-500">
+                No hay datos de ocupación disponibles.
+              </div>
+            )}
+          </div>
+        )}
+
+        {/* System Info Card */}
+        <div className="bg-white rounded-lg shadow-md p-6 mt-6">
+          <h3 className="text-xl font-semibold mb-4">Información del Sistema</h3>
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="border rounded-lg p-4 bg-blue-50">
+              <h4 className="font-medium text-blue-800 mb-2">Estado del Sistema</h4>
+              <p className="text-green-600 font-semibold">Activo</p>
+            </div>
+            <div className="border rounded-lg p-4 bg-green-50">
+              <h4 className="font-medium text-green-800 mb-2">Última Actualización</h4>
+              <p className="text-gray-700">{new Date().toLocaleString()}</p>
+            </div>
+            <div className="border rounded-lg p-4 bg-purple-50">
+              <h4 className="font-medium text-purple-800 mb-2">Versión</h4>
+              <p className="text-gray-700">1.0.0</p>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <footer className="bg-gray-800 text-white p-4 mt-6">
+        <div className="container mx-auto text-center">
+          <p>© {new Date().getFullYear()} ULACIT - Sistema de Parqueos</p>
+        </div>
+      </footer>
     </div>
-);
+  );
 };
 
 export default Dashboard;

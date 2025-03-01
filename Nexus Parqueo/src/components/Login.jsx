@@ -1,6 +1,6 @@
-import React, { useEffect, useState } from 'react';
-import { useAuth } from '/src/auth/AuthContext';
-import { useNavigate } from 'react-router-dom';
+import React, { useState, useEffect } from 'react';
+import { useAuth } from '../auth/AuthContext';
+import { useNavigate, useLocation } from 'react-router-dom';
 import UlacitLogo from '/src/assets/ulacit-logo.png';
 import UlacitBG from '/src/assets/ulacit-bg.png';
 
@@ -9,62 +9,42 @@ const Login = () => {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const { login } = useAuth();
+  
+  const { login, user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
 
+  // Get the redirect path from location state or default to dashboard
+  const from = location.state?.from?.pathname || '/dashboard';
+
+  // If already logged in, redirect to dashboard
+  useEffect(() => {
+    if (user) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    console.log('Form submitted');
     setLoading(true);
     setError('');
   
     try {
-      console.log('Starting login attempt...');
-      console.log('Sending credentials:', { username });
-
-      // Send request to backend API on port 3001
-      const response = await fetch('http://localhost:3001/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ username, password })
-      });
-
-      console.log('Raw response received:', response);
-      console.log('Response status:', response.status);
-
-      if (!response.ok) {
-        console.log('Response not ok');
-        const errorData = await response.json();
-        console.log('Error data:', errorData);
-        throw new Error(errorData.error || 'Login failed');
-      }
-
-      const data = await response.json();
-      console.log('Parsed response data:', data);
-
-      if (data.success) {
-        console.log('Login successful, preparing to redirect');
-        console.log('User data:', data.user);
-        login(data.user);
-        localStorage.setItem('user', JSON.stringify(data.user));
-        navigate('/dashboard');
+      const result = await login(username, password);
+      
+      if (result.success) {
+        if (result.user.passwordChangeRequired) {
+          navigate('/change-password');
+        } else {
+          navigate(from);
+        }
       } else {
-        console.log('Login unsuccessful:', data);
-        throw new Error('Login unsuccessful');
+        setError(result.error || 'Error al iniciar sesión');
       }
     } catch (err) {
-      console.log('Caught error:', err);
       console.error('Login error:', err);
-      if (err.message === 'Failed to fetch') {
-        setError('Could not connect to the server. Please ensure the backend is running.');
-      } else {
-        setError(err.message || 'Login failed. Please try again.');
-      }
+      setError('Error al iniciar sesión. Por favor intente de nuevo.');
     } finally {
-      console.log('Login attempt completed');
       setLoading(false);
     }
   };
@@ -72,7 +52,9 @@ const Login = () => {
   return (
     <div className="min-h-screen bg-cover bg-center flex items-center justify-center p-4" style={{ backgroundImage: `url(${UlacitBG})`}}>
       <div className="bg-white rounded-lg shadow-md w-full max-w-md p-8">
-        <img src={UlacitLogo} alt="Ulacit Logo" className="mb-4"></img>
+        <div className="flex justify-center mb-4">
+          <img src={UlacitLogo} alt="Ulacit Logo" className="h-16" />
+        </div>
         <h1 className="text-2xl font-bold text-center text-gray-900 mb-8">
           Inicia Sesión en Parqueos ULACIT
         </h1>
@@ -86,16 +68,16 @@ const Login = () => {
 
           <div className="space-y-2">
             <label htmlFor="username" className="block text-sm font-medium text-gray-700">
-              Nombre de Usuario
+              Correo Electrónico
             </label>
             <input
               id="username"
-              type="text"
+              type="email"
               value={username}
               onChange={(e) => setUsername(e.target.value)}
               required
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              placeholder="Ingrese su nombre de usuario"
+              placeholder="Ingrese su correo electrónico"
             />
           </div>
 
