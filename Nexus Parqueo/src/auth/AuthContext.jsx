@@ -124,8 +124,7 @@ export const AuthProvider = ({ children }) => {
   };
   
   const changePassword = async (currentPassword, newPassword) => {
-    if(user.passwordChangeRequired = 1){
-      try {
+    try {
       const response = await fetch('http://localhost:3001/api/auth/force-change-password', {
         method: 'POST',
         headers: {
@@ -156,7 +155,6 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: error.message };
     }
   };
-}
     
   
   const logout = async () => {

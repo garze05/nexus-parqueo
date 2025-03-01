@@ -36,10 +36,7 @@ const Login = () => {
       
       if (result.success) {
         // Check if password needs to be changed
-        if (result.user.passwordChangeRequired = 0) {
-          // Navigate to original destination or dashboard
-          navigate('/dashboard');
-        } else {
+        if (result.user.passwordChangeRequired === true) {
           console.log('Redirecting to change password', result.user); // Debug log
           
           navigate('/force-change-password', { 
@@ -48,6 +45,9 @@ const Login = () => {
               username: result.user.username 
             } 
           });
+        } else {
+          // Navigate to original destination or dashboard
+          navigate('/dashboard');
         }
       } else {
         setError(result.error || 'Error al iniciar sesión');

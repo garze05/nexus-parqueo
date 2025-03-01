@@ -27,8 +27,8 @@ export const ProtectedRoute = ({
   // Ensure it's checking the latest user object's passwordChangeRequired state
   if (user.passwordChangeRequired) {
     // Redirect to change password page unless they're already there
-    if (location.pathname !== '/change-password') {
-      return <Navigate to="/change-password" replace />;
+    if (location.pathname !== '/force-change-password') {
+      return <Navigate to="/force-change-password" replace />;
     }
   }
 

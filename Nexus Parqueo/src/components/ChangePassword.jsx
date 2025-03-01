@@ -64,10 +64,15 @@ const ChangePassword = () => {
     }
   };
 
-  // If not required to change password, don't render the change password form
-  if (user && !user.passwordChangeRequired) {
-    return null;
-  }
+// If not required to change password, redirect to dashboard
+useEffect(() => {
+    console.log('Current user in Change Password:', user); // Debug log
+    
+    // Check for multiple conditions to ensure redirection
+    if (user && (user.passwordChangeRequired === false || user.passwordChangeRequired === undefined)) {
+      navigate('/dashboard');
+    }
+  }, [user, navigate]);
 
   return (
     <div className="min-h-screen bg-cover bg-center flex items-center justify-center p-4" style={{ backgroundImage: `url(${UlacitBG})` }}>

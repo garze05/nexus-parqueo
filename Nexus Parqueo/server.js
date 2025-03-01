@@ -106,6 +106,12 @@ app.post('/api/auth/login', async (req, res) => {
             return res.status(401).json({ error: 'Usuario o contraseña inválidos' });
         }
 
+        console.log('Login route - User data:', {
+            usuario_id: user.usuario_id,
+            cambio_clave_requerido: user.cambio_clave_requerido,
+            cambio_clave_requerido_type: typeof user.cambio_clave_requerido
+        });
+
         // Create JWT token
         const token = jwt.sign(
             { 
@@ -135,7 +141,7 @@ app.post('/api/auth/login', async (req, res) => {
                 username: user.correo_electronico,
                 role: user.nombre_rol,
                 rolId: user.rol_id,
-                passwordChangeRequired: user.cambio_clave_requerido === 1
+                passwordChangeRequired: Boolean(user.cambio_clave_requerido)
             },
             token: token
         });
