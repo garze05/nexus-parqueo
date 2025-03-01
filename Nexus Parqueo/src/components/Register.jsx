@@ -64,12 +64,11 @@ const Register = () => {
     }));
   };
 
-  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError('');
-
+  
     try {
       const token = localStorage.getItem('token');
       const response = await fetch('http://localhost:3001/api/users', {
@@ -80,23 +79,9 @@ const Register = () => {
         },
         body: JSON.stringify(formData)
       });
-
-      // Parse the response
-      let data;
-      const contentType = response.headers.get('content-type');
-      if (contentType && contentType.includes('application/json')) {
-        data = await response.json();
-      } else {
-        const text = await response.text();
-        try {
-          // Attempt to parse the response as JSON anyway
-          data = JSON.parse(text);
-        } catch (e) {
-          // If parsing fails, use the text as message
-          data = { message: text || 'Error desconocido' };
-        }
-      }
-
+  
+      const data = await response.json();
+  
       if (!response.ok) {
         throw new Error(data.error || 'Error al registrar usuario');
       }
@@ -106,10 +91,10 @@ const Register = () => {
       setRegisteredUser({
         nombre: formData.nombre,
         correo_electronico: formData.correo_electronico,
-        rol: getRoleName(formData.rol_id),
-        defaultPassword: 'Ulacit123' // This is the default password
+        rol: formData.rol_id,
+        defaultPassword: 'Ulacit123'
       });
-
+  
       // Reset form
       setFormData({
         nombre: '',
@@ -126,17 +111,12 @@ const Register = () => {
       setLoading(false);
     }
   };
-
-  // Helper function to get role name from role ID
-  const getRoleName = (rolId) => {
-    const role = roles.find(r => r.rol_id == rolId);
-    return role ? role.nombre_rol : 'Desconocido';
-  };
-
-  // Close success modal
+  
   const handleCloseModal = () => {
     setSuccess(false);
     setRegisteredUser(null);
+    // Use a proper navigation method
+    navigate('/dashboard');
   };
 
   return (

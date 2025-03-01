@@ -227,10 +227,11 @@ const MyVehicles = () => {
                       type="text"
                       value={formData.numero_placa}
                       onChange={(e) => handleInputChange({
-                        ...e,
                         target: {
-                          ...e.target,
-                          value: e.target.value.toUpperCase()
+                          name: e.target.name,
+                          value: e.target.value.toUpperCase(),
+                          type: e.target.type,
+                          checked: e.target.checked
                         }
                       })}
                       required

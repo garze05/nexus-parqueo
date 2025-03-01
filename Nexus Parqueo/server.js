@@ -13,9 +13,11 @@ const app = express();
 
 // Middleware
 app.use(cors({
-    origin: 'http://localhost:5173', // Your React app's URL
-    credentials: true
-}));
+    origin: 'http://localhost:5173', 
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization']
+  }));
 app.use(express.json());
 app.use(cookieParser());
 
@@ -202,7 +204,8 @@ app.post('/api/auth/logout', (req, res) => {
     res.json({ message: 'Logout successful' });
 });
 
-// User registration endpoint (admin only)
+
+//Register users (ADMIN)
 app.post('/api/users', authenticateToken, hasRole('ADMINISTRADOR'), async (req, res) => {
     const { nombre, correo_electronico, fecha_nacimiento, identificacion, numero_carne, rol_id } = req.body;
 
@@ -223,18 +226,33 @@ app.post('/api/users', authenticateToken, hasRole('ADMINISTRADOR'), async (req, 
         const defaultPassword = 'Ulacit123';
         const hashedPassword = await bcrypt.hash(defaultPassword, SALT_ROUNDS);
 
-        // Insert new user
-        const insertQuery = `
-            INSERT INTO Usuario (
-                nombre, correo_electronico, fecha_nacimiento, identificacion, 
-                numero_carne, rol_id, clave, cambio_clave_requerido
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
-        `;
+        // Prepare the insert query with optional numero_carne
+        let insertQuery, queryParams;
+        if (numero_carne) {
+            insertQuery = `
+                INSERT INTO Usuario (
+                    nombre, correo_electronico, fecha_nacimiento, identificacion, 
+                    numero_carne, rol_id, clave, cambio_clave_requerido
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+            `;
+            queryParams = [
+                nombre, correo_electronico, fecha_nacimiento, 
+                identificacion, numero_carne, rol_id, hashedPassword
+            ];
+        } else {
+            insertQuery = `
+                INSERT INTO Usuario (
+                    nombre, correo_electronico, fecha_nacimiento, identificacion, numero_carne,
+                    rol_id, clave, cambio_clave_requerido
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, 1)
+            `;
+            queryParams = [
+                nombre, correo_electronico, fecha_nacimiento, 
+                identificacion, identificacion, rol_id, hashedPassword
+            ];
+        }
         
-        await queryAsync(insertQuery, [
-            nombre, correo_electronico, fecha_nacimiento, 
-            identificacion, numero_carne, rol_id, hashedPassword
-        ]);
+        await queryAsync(insertQuery, queryParams);
 
         res.status(201).json({ message: 'Usuario creado exitosamente' });
     } catch (err) {
