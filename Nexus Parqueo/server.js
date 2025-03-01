@@ -146,7 +146,7 @@ app.post('/api/auth/login', async (req, res) => {
 });
 
 // Change password endpoint
-app.post('/api/auth/change-password', authenticateToken, async (req, res) => {
+app.post('/api/auth/force-change-password', authenticateToken, async (req, res) => {
     const { currentPassword, newPassword } = req.body;
     const userId = req.user.id;
 

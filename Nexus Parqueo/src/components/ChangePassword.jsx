@@ -1,11 +1,11 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import UlacitLogo from '/src/assets/ulacit-logo.png';
 import UlacitBG from '/src/assets/ulacit-bg.png';
 
 const ChangePassword = () => {
-  const [currentPassword, setCurrentPassword] = useState('');
+  const [currentPassword, setCurrentPassword] = useState('Ulacit123');
   const [newPassword, setNewPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
   const [error, setError] = useState('');
@@ -14,10 +14,20 @@ const ChangePassword = () => {
   const { changePassword, user } = useAuth();
   const navigate = useNavigate();
 
+
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     
-    // Validate passwords
+    // Reset error
+    setError('');
+
+    // Validate inputs
+    if (!currentPassword || !newPassword || !confirmPassword) {
+      setError('Ambas contraseñas son requeridas');
+      return;
+    }
+    
     if (newPassword !== confirmPassword) {
       setError('Las contraseñas nuevas no coinciden');
       return;
@@ -27,15 +37,21 @@ const ChangePassword = () => {
       setError('La nueva contraseña debe tener al menos 8 caracteres');
       return;
     }
+
+    // Password complexity requirements
+    const passwordRegex = /^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[!@#$%^&*()_+\-=\[\]{};':"\\|,.<>\/?])/;
+    if (!passwordRegex.test(newPassword)) {
+      setError('La contraseña debe contener al menos una letra mayúscula, una minúscula, un número y un carácter especial');
+      return;
+    }
     
     setLoading(true);
-    setError('');
     
     try {
       const result = await changePassword(currentPassword, newPassword);
       
       if (result.success) {
-        // Redirect to dashboard after successful password change
+        // Redirect to dashboard
         navigate('/dashboard');
       } else {
         setError(result.error || 'Error al cambiar la contraseña');
@@ -48,8 +64,13 @@ const ChangePassword = () => {
     }
   };
 
+  // If not required to change password, don't render the change password form
+  if (user && !user.passwordChangeRequired) {
+    return null;
+  }
+
   return (
-    <div className="min-h-screen bg-cover bg-center flex items-center justify-center p-4" style={{ backgroundImage: `url(${UlacitBG})`}}>
+    <div className="min-h-screen bg-cover bg-center flex items-center justify-center p-4" style={{ backgroundImage: `url(${UlacitBG})` }}>
       <div className="bg-white rounded-lg shadow-md w-full max-w-md p-8">
         <div className="flex justify-center mb-4">
           <img src={UlacitLogo} alt="Ulacit Logo" className="h-16" />
@@ -58,12 +79,10 @@ const ChangePassword = () => {
           Cambiar Contraseña
         </h1>
         
-        {user?.passwordChangeRequired && (
-          <div className="bg-yellow-50 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative mb-6">
-            <p className="font-medium">Cambio obligatorio de contraseña</p>
-            <p>Debe cambiar su contraseña temporal antes de continuar.</p>
-          </div>
-        )}
+        <div className="bg-yellow-50 border border-yellow-400 text-yellow-700 px-4 py-3 rounded relative mb-6">
+          <p className="font-medium">Cambio de Contraseña Obligatorio</p>
+          <p className="text-sm">Debe cambiar su contraseña temporal antes de continuar.</p>
+        </div>
 
         <form onSubmit={handleSubmit} className="space-y-6">
           {error && (
@@ -100,6 +119,9 @@ const ChangePassword = () => {
               className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               placeholder="Ingrese su nueva contraseña"
             />
+            <p className="text-xs text-gray-500 mt-1">
+              La contraseña debe tener al menos 8 caracteres e incluir mayúsculas, minúsculas, números y caracteres especiales.
+            </p>
           </div>
 
           <div className="space-y-2">

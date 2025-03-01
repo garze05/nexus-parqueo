@@ -32,11 +32,22 @@ const Login = () => {
     try {
       const result = await login(username, password);
       
+      console.log('Login result:', result); // Debug log
+      
       if (result.success) {
-        if (result.user.passwordChangeRequired) {
-          navigate('/change-password');
+        // Check if password needs to be changed
+        if (result.user.passwordChangeRequired = 0) {
+          // Navigate to original destination or dashboard
+          navigate('/dashboard');
         } else {
-          navigate(from);
+          console.log('Redirecting to change password', result.user); // Debug log
+          
+          navigate('/force-change-password', { 
+            state: { 
+              fromLogin: true,
+              username: result.user.username 
+            } 
+          });
         }
       } else {
         setError(result.error || 'Error al iniciar sesión');

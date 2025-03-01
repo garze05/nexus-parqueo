@@ -30,7 +30,7 @@ function App() {
           <Route path="/unauthorized" element={<Unauthorized />} />
           
           {/* Protected routes that require authentication */}
-          <Route path="/change-password" element={
+          <Route path="/force-change-password" element={
             <ProtectedRoute>
               <ChangePassword />
             </ProtectedRoute>
@@ -118,20 +118,20 @@ function App() {
           
           {/* Security guard routes */}
           <Route path="/vehicle-control" element={
-            <ProtectedRoute requiredRole={ROLES.STAFF}>
+            <ProtectedRoute requiredRole={ROLES.SECURITY}>
               <VehicleControl />
             </ProtectedRoute>
           } />
           
           <Route path="/select-parking" element={
-            <ProtectedRoute requiredRole={ROLES.STAFF}>
+            <ProtectedRoute requiredRole={ROLES.SECURITY}>
               <SelectParking />
             </ProtectedRoute>
           } />
           
           {/* Additional security staff routes */}
           <Route path="/vehicle-entry" element={
-            <ProtectedRoute requiredRole={ROLES.STAFF}>
+            <ProtectedRoute requiredRole={ROLES.SECURITY}>
               <div className="p-8 text-center">
                 <h2 className="text-2xl font-bold mb-4">Ingreso de Vehículos</h2>
                 <p className="text-gray-600">Esta sección está en desarrollo.</p>
@@ -140,7 +140,7 @@ function App() {
           } />
           
           <Route path="/vehicle-exit" element={
-            <ProtectedRoute requiredRole={ROLES.STAFF}>
+            <ProtectedRoute requiredRole={ROLES.SECURITY}>
               <div className="p-8 text-center">
                 <h2 className="text-2xl font-bold mb-4">Salida de Vehículos</h2>
                 <p className="text-gray-600">Esta sección está en desarrollo.</p>
@@ -149,7 +149,7 @@ function App() {
           } />
           
           <Route path="/staff-reports" element={
-            <ProtectedRoute requiredRole={ROLES.STAFF}>
+            <ProtectedRoute requiredRole={ROLES.SECURITY}>
               <div className="p-8 text-center">
                 <h2 className="text-2xl font-bold mb-4">Reportes de Ocupación</h2>
                 <p className="text-gray-600">Esta sección está en desarrollo.</p>

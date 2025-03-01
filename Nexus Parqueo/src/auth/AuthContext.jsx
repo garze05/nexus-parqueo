@@ -16,9 +16,8 @@ export const PERMISSIONS = {
   VIEW_OCCUPATION: 'view_occupation',
   VIEW_HISTORY: 'view_history',
   VIEW_FAILED_ENTRIES: 'view_failed_entries',
-  VIEW_DASHBOARD: 'view_dashboard',
   EDIT_PROFILE: 'edit_profile',
-  VIEW_PUBLIC: 'view_public'
+  VIEW_DASHBOARD: 'view_dashboard'
 };
 
 // Role-permission mapping
@@ -29,30 +28,26 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.VIEW_OCCUPATION,
     PERMISSIONS.VIEW_FAILED_ENTRIES,
     PERMISSIONS.VIEW_HISTORY,
-    PERMISSIONS.VIEW_DASHBOARD,
     PERMISSIONS.EDIT_PROFILE,
-    PERMISSIONS.VIEW_PUBLIC
+    PERMISSIONS.VIEW_DASHBOARD
   ],
   [ROLES.SECURITY]: [
     PERMISSIONS.REGISTER_ENTRY_EXIT,
     PERMISSIONS.VIEW_OCCUPATION,
-    PERMISSIONS.VIEW_DASHBOARD,
     PERMISSIONS.EDIT_PROFILE,
-    PERMISSIONS.VIEW_PUBLIC
+    PERMISSIONS.VIEW_DASHBOARD
   ],
   [ROLES.STAFF]: [
     PERMISSIONS.MANAGE_VEHICLES,
     PERMISSIONS.VIEW_HISTORY,
-    PERMISSIONS.VIEW_DASHBOARD,
     PERMISSIONS.EDIT_PROFILE,
-    PERMISSIONS.VIEW_PUBLIC
+    PERMISSIONS.VIEW_DASHBOARD
   ],
   [ROLES.STUDENT]: [
     PERMISSIONS.MANAGE_VEHICLES,
     PERMISSIONS.VIEW_HISTORY,
-    PERMISSIONS.VIEW_DASHBOARD,
     PERMISSIONS.EDIT_PROFILE,
-    PERMISSIONS.VIEW_PUBLIC
+    PERMISSIONS.VIEW_DASHBOARD
   ]
 };
 
@@ -98,22 +93,28 @@ export const AuthProvider = ({ children }) => {
         credentials: 'include', // Important for cookies
         body: JSON.stringify({ username, password })
       });
-
+  
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Error de inicio de sesión');
       }
-
+  
       const data = await response.json();
       
       if (data.success) {
+        // Update the user object in localStorage to reflect the current passwordChangeRequired state
+        const updatedUser = {
+          ...data.user,
+          passwordChangeRequired: data.user.passwordChangeRequired
+        };
+        
         // Store the user and token in localStorage
-        localStorage.setItem('user', JSON.stringify(data.user));
+        localStorage.setItem('user', JSON.stringify(updatedUser));
         localStorage.setItem('token', data.token);
         
         // Update state
-        setUser(data.user);
-        return { success: true, user: data.user };
+        setUser(updatedUser);
+        return { success: true, user: updatedUser };
       } else {
         throw new Error('Inicio de sesión fallido');
       }
@@ -122,31 +123,10 @@ export const AuthProvider = ({ children }) => {
     }
   };
   
-  const logout = async () => {
-    try {
-      // Call the logout endpoint
-      await fetch('http://localhost:3001/api/auth/logout', {
-        method: 'POST',
-        credentials: 'include',
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`
-        }
-      });
-    } catch (error) {
-      console.error('Logout error:', error);
-    } finally {
-      // Remove user data from localStorage
-      localStorage.removeItem('user');
-      localStorage.removeItem('token');
-      
-      // Update state
-      setUser(null);
-    }
-  };
-
   const changePassword = async (currentPassword, newPassword) => {
-    try {
-      const response = await fetch('http://localhost:3001/api/auth/change-password', {
+    if(user.passwordChangeRequired = 1){
+      try {
+      const response = await fetch('http://localhost:3001/api/auth/force-change-password', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -161,11 +141,14 @@ export const AuthProvider = ({ children }) => {
         throw new Error(errorData.error || 'Error al cambiar la contraseña');
       }
 
-      // Update user state to reflect password change
+      // Update user in state and localStorage to reflect password change
       if (user) {
-        const updatedUser = { ...user, passwordChangeRequired: false };
-        localStorage.setItem('user', JSON.stringify(updatedUser));
+        const updatedUser = {
+          ...user,
+          passwordChangeRequired: false
+        };
         setUser(updatedUser);
+        localStorage.setItem('user', JSON.stringify(updatedUser));
       }
 
       return { success: true };
@@ -173,7 +156,26 @@ export const AuthProvider = ({ children }) => {
       return { success: false, error: error.message };
     }
   };
+}
+    
   
+  const logout = async () => {
+    try {
+      // Call logout API endpoint
+      await fetch('http://localhost:3001/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include'
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // Clear user data and token from localStorage regardless of API success
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      setUser(null);
+    }
+  };
+
   const hasPermission = (permission) => {
     if (!user || !user.role) return false;
     return ROLE_PERMISSIONS[user.role]?.includes(permission) || false;
