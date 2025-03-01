@@ -15,7 +15,10 @@ export const PERMISSIONS = {
   REGISTER_ENTRY_EXIT: 'register_entry_exit',
   VIEW_OCCUPATION: 'view_occupation',
   VIEW_HISTORY: 'view_history',
-  VIEW_FAILED_ENTRIES: 'view_failed_entries'
+  VIEW_FAILED_ENTRIES: 'view_failed_entries',
+  VIEW_DASHBOARD: 'view_dashboard',
+  EDIT_PROFILE: 'edit_profile',
+  VIEW_PUBLIC: 'view_public'
 };
 
 // Role-permission mapping
@@ -25,19 +28,31 @@ export const ROLE_PERMISSIONS = {
     PERMISSIONS.MANAGE_VEHICLES,
     PERMISSIONS.VIEW_OCCUPATION,
     PERMISSIONS.VIEW_FAILED_ENTRIES,
-    PERMISSIONS.VIEW_HISTORY
+    PERMISSIONS.VIEW_HISTORY,
+    PERMISSIONS.VIEW_DASHBOARD,
+    PERMISSIONS.EDIT_PROFILE,
+    PERMISSIONS.VIEW_PUBLIC
   ],
   [ROLES.SECURITY]: [
     PERMISSIONS.REGISTER_ENTRY_EXIT,
-    PERMISSIONS.VIEW_OCCUPATION
+    PERMISSIONS.VIEW_OCCUPATION,
+    PERMISSIONS.VIEW_DASHBOARD,
+    PERMISSIONS.EDIT_PROFILE,
+    PERMISSIONS.VIEW_PUBLIC
   ],
   [ROLES.STAFF]: [
     PERMISSIONS.MANAGE_VEHICLES,
-    PERMISSIONS.VIEW_HISTORY
+    PERMISSIONS.VIEW_HISTORY,
+    PERMISSIONS.VIEW_DASHBOARD,
+    PERMISSIONS.EDIT_PROFILE,
+    PERMISSIONS.VIEW_PUBLIC
   ],
   [ROLES.STUDENT]: [
     PERMISSIONS.MANAGE_VEHICLES,
-    PERMISSIONS.VIEW_HISTORY
+    PERMISSIONS.VIEW_HISTORY,
+    PERMISSIONS.VIEW_DASHBOARD,
+    PERMISSIONS.EDIT_PROFILE,
+    PERMISSIONS.VIEW_PUBLIC
   ]
 };
 
@@ -107,6 +122,58 @@ export const AuthProvider = ({ children }) => {
     }
   };
   
+  const logout = async () => {
+    try {
+      // Call the logout endpoint
+      await fetch('http://localhost:3001/api/auth/logout', {
+        method: 'POST',
+        credentials: 'include',
+        headers: {
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        }
+      });
+    } catch (error) {
+      console.error('Logout error:', error);
+    } finally {
+      // Remove user data from localStorage
+      localStorage.removeItem('user');
+      localStorage.removeItem('token');
+      
+      // Update state
+      setUser(null);
+    }
+  };
+
+  const changePassword = async (currentPassword, newPassword) => {
+    try {
+      const response = await fetch('http://localhost:3001/api/auth/change-password', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${localStorage.getItem('token')}`
+        },
+        credentials: 'include',
+        body: JSON.stringify({ currentPassword, newPassword })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Error al cambiar la contraseña');
+      }
+
+      // Update user state to reflect password change
+      if (user) {
+        const updatedUser = { ...user, passwordChangeRequired: false };
+        localStorage.setItem('user', JSON.stringify(updatedUser));
+        setUser(updatedUser);
+      }
+
+      return { success: true };
+    } catch (error) {
+      return { success: false, error: error.message };
+    }
+  };
+  
   const hasPermission = (permission) => {
     if (!user || !user.role) return false;
     return ROLE_PERMISSIONS[user.role]?.includes(permission) || false;
@@ -125,7 +192,9 @@ export const AuthProvider = ({ children }) => {
       value={{ 
         user, 
         loading,
-        login, 
+        login,
+        logout,
+        changePassword,
         hasPermission, 
         hasRole 
       }}
@@ -133,5 +202,4 @@ export const AuthProvider = ({ children }) => {
       {children}
     </AuthContext.Provider>
   );
-
-}
+};

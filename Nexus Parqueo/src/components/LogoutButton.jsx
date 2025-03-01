@@ -7,8 +7,14 @@ const LogoutButton = () => {
   const navigate = useNavigate();
 
   const handleLogout = async () => {
-    await logout();
-    navigate('/login');
+    try {
+      await logout();
+      navigate('/login');
+    } catch (error) {
+      console.error('Logout error:', error);
+      // Even if there's an error with the API call, we still want to log out locally
+      navigate('/login');
+    }
   };
 
   return (

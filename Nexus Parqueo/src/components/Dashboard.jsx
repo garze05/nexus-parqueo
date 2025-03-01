@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import UlacitLogo from '/src/assets/ulacit-logo.png';
 import LogoutButton from './LogoutButton';
-import { ROLES, PERMISSIONS } from '../auth/roles';
+import { ROLES, PERMISSIONS } from '../auth/AuthContext';
 
 const Dashboard = () => {
   const { user, hasRole, hasPermission } = useAuth();
@@ -15,57 +15,17 @@ const Dashboard = () => {
   // Fetch parking occupation if user has permission
   useEffect(() => {
     const fetchParkingOccupation = async () => {
-      if (hasPermission(PERMISSIONS.VIEW_DASHBOARD)) {
+      if (hasPermission(PERMISSIONS.VIEW_OCCUPATION)) {
         setLoading(true);
         setError('');
         
         try {
-          // This is a mock implementation - in production, replace with actual API call
-          // Simulating API response delay
-          setTimeout(() => {
-            // Mock data for parking occupation
-            const mockData = [
-              {
-                parqueo_id: 1,
-                nombre_parqueo: 'Parqueo Principal',
-                capacidad_regulares: 100,
-                capacidad_motos: 20,
-                capacidad_ley7600: 5,
-                espacios_regulares_ocupados: 75,
-                espacios_motos_ocupados: 12,
-                espacios_ley7600_ocupados: 2
-              },
-              {
-                parqueo_id: 2,
-                nombre_parqueo: 'Parqueo Secundario',
-                capacidad_regulares: 50,
-                capacidad_motos: 10,
-                capacidad_ley7600: 3,
-                espacios_regulares_ocupados: 20,
-                espacios_motos_ocupados: 5,
-                espacios_ley7600_ocupados: 1
-              },
-              {
-                parqueo_id: 3,
-                nombre_parqueo: 'Parqueo Torre',
-                capacidad_regulares: 70,
-                capacidad_motos: 15,
-                capacidad_ley7600: 4,
-                espacios_regulares_ocupados: 65,
-                espacios_motos_ocupados: 10,
-                espacios_ley7600_ocupados: 3
-              }
-            ];
-            
-            setParkingOccupation(mockData);
-            setLoading(false);
-          }, 1000);
-          
-          /* Uncomment for actual API integration
+          const token = localStorage.getItem('token');
           const response = await fetch('http://localhost:3001/api/parkings/occupation', {
             headers: {
-              'Authorization': `Bearer ${localStorage.getItem('token')}`
-            }
+              'Authorization': `Bearer ${token}`
+            },
+            credentials: 'include'
           });
           
           if (!response.ok) {
@@ -74,10 +34,54 @@ const Dashboard = () => {
           
           const data = await response.json();
           setParkingOccupation(data);
-          */
         } catch (error) {
           console.error('Error fetching parking occupation:', error);
           setError('Error al cargar los datos de ocupación');
+          
+          // If API fails, load mock data for development purposes
+          const mockData = [
+            {
+              parqueo_id: 1,
+              nombre_parqueo: 'Parqueo Principal',
+              capacidad_regulares: 100,
+              capacidad_motos: 20,
+              capacidad_ley7600: 5,
+              espacios_regulares_ocupados: 75,
+              espacios_motos_ocupados: 12,
+              espacios_ley7600_ocupados: 2,
+              espacios_regulares_disponibles: 25,
+              espacios_motos_disponibles: 8,
+              espacios_ley7600_disponibles: 3
+            },
+            {
+              parqueo_id: 2,
+              nombre_parqueo: 'Parqueo Secundario',
+              capacidad_regulares: 50,
+              capacidad_motos: 10,
+              capacidad_ley7600: 3,
+              espacios_regulares_ocupados: 20,
+              espacios_motos_ocupados: 5,
+              espacios_ley7600_ocupados: 1,
+              espacios_regulares_disponibles: 30,
+              espacios_motos_disponibles: 5,
+              espacios_ley7600_disponibles: 2
+            },
+            {
+              parqueo_id: 3,
+              nombre_parqueo: 'Parqueo Torre',
+              capacidad_regulares: 70,
+              capacidad_motos: 15,
+              capacidad_ley7600: 4,
+              espacios_regulares_ocupados: 65,
+              espacios_motos_ocupados: 10,
+              espacios_ley7600_ocupados: 3,
+              espacios_regulares_disponibles: 5,
+              espacios_motos_disponibles: 5,
+              espacios_ley7600_disponibles: 1
+            }
+          ];
+          setParkingOccupation(mockData);
+        } finally {
           setLoading(false);
         }
       }
@@ -101,7 +105,7 @@ const Dashboard = () => {
       <div className="container mx-auto p-6">
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
           <h2 className="text-2xl font-semibold mb-4">
-            Bienvenido, {user ? user.username : 'Usuario'}
+            Bienvenido, {user ? user.name : 'Usuario'}
           </h2>
           <p className="text-gray-600">
             Rol: <span className="font-medium">{user ? user.role : 'Desconocido'}</span>
@@ -116,118 +120,69 @@ const Dashboard = () => {
               <>
                 <button 
                   onClick={() => navigate('/register')}
-                  className="p-4 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors flex flex-col items-center"
+                  className="p-4 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors flex flex-col items-center justify-center h-32"
                 >
                   <span className="text-2xl mb-2">👥</span>
-                  <span className="font-medium">Registrar Usuario</span>
+                  <span className="font-medium text-center">Registrar Usuario</span>
                 </button>
                 <button 
-                  onClick={() => navigate('/manage-users')}
-                  className="p-4 bg-violet-100 rounded-lg hover:bg-violet-200 transition-colors flex flex-col items-center"
+                  onClick={() => navigate('/users')}
+                  className="p-4 bg-violet-100 rounded-lg hover:bg-violet-200 transition-colors flex flex-col items-center justify-center h-32"
                 >
                   <span className="text-2xl mb-2">👤</span>
-                  <span className="font-medium">Administrar Usuarios</span>
-                </button>
-                <button 
-                  onClick={() => navigate('/manage-vehicles')}
-                  className="p-4 bg-indigo-100 rounded-lg hover:bg-indigo-200 transition-colors flex flex-col items-center"
-                >
-                  <span className="text-2xl mb-2">🚗</span>
-                  <span className="font-medium">Administrar Vehículos</span>
+                  <span className="font-medium text-center">Administrar Usuarios</span>
                 </button>
                 <button 
                   onClick={() => navigate('/parking-lots')}
-                  className="p-4 bg-green-100 rounded-lg hover:bg-green-200 transition-colors flex flex-col items-center"
+                  className="p-4 bg-green-100 rounded-lg hover:bg-green-200 transition-colors flex flex-col items-center justify-center h-32"
                 >
                   <span className="text-2xl mb-2">🅿️</span>
-                  <span className="font-medium">Gestionar Parqueos</span>
-                </button>
-                <button 
-                  onClick={() => navigate('/parking-stats')}
-                  className="p-4 bg-teal-100 rounded-lg hover:bg-teal-200 transition-colors flex flex-col items-center"
-                >
-                  <span className="text-2xl mb-2">📈</span>
-                  <span className="font-medium">Estadísticas de Uso</span>
+                  <span className="font-medium text-center">Gestionar Parqueos</span>
                 </button>
                 <button 
                   onClick={() => navigate('/reports/failed-entries')}
-                  className="p-4 bg-amber-100 rounded-lg hover:bg-amber-200 transition-colors flex flex-col items-center"
+                  className="p-4 bg-amber-100 rounded-lg hover:bg-amber-200 transition-colors flex flex-col items-center justify-center h-32"
                 >
                   <span className="text-2xl mb-2">🚫</span>
-                  <span className="font-medium">Intentos Fallidos</span>
-                </button>
-                <button 
-                  onClick={() => navigate('/system-settings')}
-                  className="p-4 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors flex flex-col items-center"
-                >
-                  <span className="text-2xl mb-2">⚙️</span>
-                  <span className="font-medium">Configuración</span>
-                </button>
-                <button 
-                  onClick={() => navigate('/system-logs')}
-                  className="p-4 bg-red-100 rounded-lg hover:bg-red-200 transition-colors flex flex-col items-center"
-                >
-                  <span className="text-2xl mb-2">📋</span>
-                  <span className="font-medium">Bitácora del Sistema</span>
+                  <span className="font-medium text-center">Intentos Fallidos</span>
                 </button>
               </>
             )}
             
-            {(hasRole(ROLES.STAFF) || hasRole(ROLES.ADMIN)) && (
+            {hasRole(ROLES.SECURITY) && (
               <>
                 <button 
                   onClick={() => navigate('/vehicle-control')}
-                  className="p-4 bg-indigo-100 rounded-lg hover:bg-indigo-200 transition-colors flex flex-col items-center"
+                  className="p-4 bg-indigo-100 rounded-lg hover:bg-indigo-200 transition-colors flex flex-col items-center justify-center h-32"
                 >
                   <span className="text-2xl mb-2">🚗</span>
-                  <span className="font-medium">Control de Vehículos</span>
-                </button>
-                <button 
-                  onClick={() => navigate('/vehicle-entry')}
-                  className="p-4 bg-emerald-100 rounded-lg hover:bg-emerald-200 transition-colors flex flex-col items-center"
-                >
-                  <span className="text-2xl mb-2">🚪</span>
-                  <span className="font-medium">Ingreso de Vehículos</span>
-                </button>
-                <button 
-                  onClick={() => navigate('/vehicle-exit')}
-                  className="p-4 bg-orange-100 rounded-lg hover:bg-orange-200 transition-colors flex flex-col items-center"
-                >
-                  <span className="text-2xl mb-2">🚶</span>
-                  <span className="font-medium">Salida de Vehículos</span>
+                  <span className="font-medium text-center">Control de Vehículos</span>
                 </button>
                 <button 
                   onClick={() => navigate('/select-parking')}
-                  className="p-4 bg-purple-100 rounded-lg hover:bg-purple-200 transition-colors flex flex-col items-center"
+                  className="p-4 bg-purple-100 rounded-lg hover:bg-purple-200 transition-colors flex flex-col items-center justify-center h-32"
                 >
                   <span className="text-2xl mb-2">🔄</span>
-                  <span className="font-medium">Cambiar Parqueo</span>
-                </button>
-                <button 
-                  onClick={() => navigate('/staff-reports')}
-                  className="p-4 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors flex flex-col items-center"
-                >
-                  <span className="text-2xl mb-2">📊</span>
-                  <span className="font-medium">Reportes de Ocupación</span>
+                  <span className="font-medium text-center">Seleccionar Parqueo</span>
                 </button>
               </>
             )}
             
-            {(hasRole(ROLES.USER) || hasRole(ROLES.STAFF)) && (
+            {(hasRole([ROLES.STUDENT, ROLES.STAFF, ROLES.ADMIN, ROLES.SECURITY])) && (
               <>
                 <button 
                   onClick={() => navigate('/my-vehicles')}
-                  className="p-4 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors flex flex-col items-center"
+                  className="p-4 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors flex flex-col items-center justify-center h-32"
                 >
                   <span className="text-2xl mb-2">🚗</span>
-                  <span className="font-medium">Mis Vehículos</span>
+                  <span className="font-medium text-center">Mis Vehículos</span>
                 </button>
                 <button 
                   onClick={() => navigate('/history')}
-                  className="p-4 bg-green-100 rounded-lg hover:bg-green-200 transition-colors flex flex-col items-center"
+                  className="p-4 bg-green-100 rounded-lg hover:bg-green-200 transition-colors flex flex-col items-center justify-center h-32"
                 >
                   <span className="text-2xl mb-2">📅</span>
-                  <span className="font-medium">Historial de Uso</span>
+                  <span className="font-medium text-center">Historial de Uso</span>
                 </button>
               </>
             )}
@@ -235,7 +190,7 @@ const Dashboard = () => {
         </div>
         
         {/* Parking Occupation Section */}
-        {hasPermission(PERMISSIONS.VIEW_DASHBOARD) && (
+        {hasPermission(PERMISSIONS.VIEW_OCCUPATION) && (
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-xl font-semibold mb-4">Ocupación de Parqueos</h3>
             
@@ -251,7 +206,7 @@ const Dashboard = () => {
               </div>
             )}
             
-            {!loading && !error && parkingOccupation.length > 0 && (
+            {!loading && parkingOccupation.length > 0 && (
               <div className="overflow-x-auto">
                 <table className="min-w-full bg-white">
                   <thead className="bg-gray-100">
@@ -301,7 +256,7 @@ const Dashboard = () => {
               </div>
             )}
             
-            {!loading && !error && parkingOccupation.length === 0 && (
+            {!loading && parkingOccupation.length === 0 && (
               <div className="text-center p-4 text-gray-500">
                 No hay datos de ocupación disponibles.
               </div>
