@@ -4,6 +4,7 @@ import { useAuth } from '../auth/AuthContext';
 import UlacitLogo from '/src/assets/ulacit-logo.png';
 import LogoutButton from './LogoutButton';
 import { ROLES, PERMISSIONS } from '../auth/AuthContext';
+import DashboardLayout from '../components/DashboardLayout';
 
 const Dashboard = () => {
   const { user, hasRole, hasPermission } = useAuth();
@@ -89,32 +90,17 @@ const Dashboard = () => {
     
     fetchParkingOccupation();
   }, [hasPermission]);
-
+  
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow-md p-4">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center">
-            <img src={UlacitLogo} alt="Ulacit Logo" className="h-10 mr-4" />
-            <h1 className="text-xl font-bold text-gray-800">Sistema de Parqueos ULACIT</h1>
-          </div>
-          <LogoutButton />
-        </div>
-      </nav>
-      
+    <DashboardLayout headerText={"Sistema de Parqueos ULACIT"}>
       <div className="container mx-auto p-6">
-        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h2 className="text-2xl font-semibold mb-4">
-            Bienvenido, {user ? user.name : 'Usuario'}
-          </h2>
-          <p className="text-gray-600">
-            Rol: <span className="font-medium">{user ? user.role : 'Desconocido'}</span>
-          </p>
-        </div>
         
         {/* Quick Actions Section */}
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
-          <h3 className="text-xl font-semibold mb-4">Acciones Rápidas</h3>
+          <h2 className="text-4xl font-bold mb-4 text-[#220236]">
+            Bienvenido, {user ? user.name.split(" ")[0] : 'Usuario'}
+          </h2>
+          <h3 className="text-xl font-semibold mb-4 text-[#220236]">Acciones Rápidas</h3>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {hasRole(ROLES.ADMIN) && (
               <>
@@ -266,10 +252,10 @@ const Dashboard = () => {
 
         {/* System Info Card */}
         <div className="bg-white rounded-lg shadow-md p-6 mt-6">
-          <h3 className="text-xl font-semibold mb-4">Información del Sistema</h3>
+          <h3 className="text-xl font-semibold mb-4 text-[#220236]">Información del Sistema</h3>
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div className="border rounded-lg p-4 bg-blue-50">
-              <h4 className="font-medium text-blue-800 mb-2">Estado del Sistema</h4>
+              <h4 className="font-medium text-blue-800 mb-2 ">Estado del Sistema</h4>
               <p className="text-green-600 font-semibold">Activo</p>
             </div>
             <div className="border rounded-lg p-4 bg-green-50">
@@ -283,13 +269,7 @@ const Dashboard = () => {
           </div>
         </div>
       </div>
-      
-      <footer className="bg-gray-800 text-white p-4 mt-6">
-        <div className="container mx-auto text-center">
-          <p>© {new Date().getFullYear()} ULACIT - Sistema de Parqueos</p>
-        </div>
-      </footer>
-    </div>
+    </DashboardLayout>
   );
 };
 

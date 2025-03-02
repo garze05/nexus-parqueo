@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../auth/AuthContext';
 import UlacitLogo from '/src/assets/ulacit-logo.png';
+import DashboardLayout from './DashboardLayout';
 
 const MyVehicles = () => {
   const [vehicles, setVehicles] = useState([]);
@@ -131,21 +132,7 @@ const MyVehicles = () => {
   };
   
   return (
-    <div className="min-h-screen bg-gray-100">
-      <nav className="bg-white shadow-md p-4">
-        <div className="flex justify-between items-center">
-          <div className="flex items-center">
-            <img src={UlacitLogo} alt="Ulacit Logo" className="h-10 mr-4" />
-            <h1 className="text-xl font-bold text-gray-800">Mis Vehículos</h1>
-          </div>
-          <button
-            onClick={() => navigate('/dashboard')}
-            className="px-4 py-2 bg-gray-200 hover:bg-gray-300 text-gray-700 font-medium rounded shadow-sm transition-colors"
-          >
-            Volver al Dashboard
-          </button>
-        </div>
-      </nav>
+    <DashboardLayout headerText={"Mis Vehículos"}>
       
       <div className="container mx-auto p-6">
         <div className="bg-white rounded-lg shadow-md p-6 mb-6">
@@ -352,7 +339,7 @@ const MyVehicles = () => {
           )}
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 

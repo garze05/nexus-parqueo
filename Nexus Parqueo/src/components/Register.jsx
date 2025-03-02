@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import UlacitLogo from '/src/assets/ulacit-logo.png';
 import UlacitBG from '/src/assets/ulacit-bg.png';
 import { ROLES } from '../auth/AuthContext';
+import DashboardLayout from './DashboardLayout';
 
 const Register = () => {
   // State for form data
@@ -120,8 +121,9 @@ const Register = () => {
   };
 
   return (
-    <div className="min-h-screen bg-cover bg-center flex items-center justify-center p-4" style={{ backgroundImage: `url(${UlacitBG})` }}>
-      <div className="bg-white rounded-lg shadow-md w-full max-w-md p-8">
+    <DashboardLayout headerText={"Registro de Usuarios"}>
+      <div className="container mx-auto p-6">
+      <div className="bg-white rounded-lg shadow-md w-full max-w-lg p-8 mx-auto">
         <div className="flex justify-center mb-4">
           <img src={UlacitLogo} alt="Ulacit Logo" className="h-16" />
         </div>
@@ -237,18 +239,11 @@ const Register = () => {
           </div>
 
           <div className="flex justify-between pt-4">
-            <button
-              type="button"
-              onClick={() => navigate('/dashboard')}
-              className="px-4 py-2 bg-gray-300 hover:bg-gray-400 text-gray-700 font-medium rounded shadow-sm transition-colors"
-            >
-              Cancelar
-            </button>
 
             <button
               type="submit"
               disabled={loading || loadingRoles}
-              className={`px-6 py-2 rounded font-medium shadow-sm ${
+              className={`w-full px-6 py-2 rounded font-medium shadow-sm ${
                 loading || loadingRoles ? 'bg-blue-400 cursor-not-allowed' : 'bg-blue-600 hover:bg-blue-700 text-white'
               }`}
             >
@@ -284,7 +279,8 @@ const Register = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </DashboardLayout>
   );
 };
 
