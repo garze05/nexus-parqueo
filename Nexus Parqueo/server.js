@@ -262,7 +262,7 @@ app.post('/api/users', authenticateToken, hasRole('ADMINISTRADOR'), async (req, 
 });
 
 // Get all users (admin only)
-app.get('/api/users', authenticateToken, hasRole('ADMINISTRADOR'), async (req, res) => {
+app.get('/api/users', authenticateToken, hasRole('ADMINISTRADOR',), async (req, res) => {
     try {
         const query = `
             SELECT u.usuario_id, u.nombre, u.correo_electronico, u.identificacion, 
@@ -312,6 +312,25 @@ app.get('/api/users/:id', authenticateToken, async (req, res) => {
     }
 });
 
+// Get vehicle count for a specific user (admin only)
+app.get('/api/vehicles/count/:userId', authenticateToken, hasRole('ADMINISTRADOR'), async (req, res) => {
+    const userId = req.params.userId;
+    
+    if (!userId) {
+        return res.status(400).json({ error: 'ID de usuario requerido' });
+    }
+    
+    try {
+        const query = "SELECT COUNT(*) AS count FROM Vehiculo WHERE usuario_id = ? AND activo = 1";
+        const result = await queryAsync(query, [userId]);
+        
+        res.json({ count: result[0].count });
+    } catch (err) {
+        console.error('Database Error:', err);
+        return res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
 // Get all roles
 app.get('/api/roles', authenticateToken, async (req, res) => {
     try {
@@ -325,16 +344,20 @@ app.get('/api/roles', authenticateToken, async (req, res) => {
     }
 });
 
-// Vehicle registration
-app.post('/api/vehicles', authenticateToken, async (req, res) => {
-    const { marca, color, numero_placa, tipo, usa_espacio_ley7600 } = req.body;
-    const usuario_id = req.user.id;
-
-    if (!marca || !color || !numero_placa || !tipo) {
-        return res.status(400).json({ error: 'Todos los campos requeridos deben ser completados' });
-    }
-
+// Vehicle registration *Admin only*
+app.post('/api/vehicles/register', authenticateToken, hasRole('ADMINISTRADOR'), async (req, res) => {
     try {
+        // Log the incoming request for debugging
+        console.log('Admin vehicle registration request:', req.body);
+        
+        // Extract fields from request body
+        const { numero_placa, marca, color, tipo, usa_espacio_ley7600, owner } = req.body;
+        
+        // Validate required fields
+        if (!numero_placa || !marca || !color || !tipo || !owner) {
+            return res.status(400).json({ error: 'Todos los campos requeridos deben ser completados' });
+        }
+
         // Check if plate already exists
         const checkPlateQuery = "SELECT COUNT(*) AS count FROM Vehiculo WHERE numero_placa = ?";
         const plateResult = await queryAsync(checkPlateQuery, [numero_placa]);
@@ -345,7 +368,7 @@ app.post('/api/vehicles', authenticateToken, async (req, res) => {
 
         // Check vehicle count limit (max 2 per user)
         const checkVehicleCountQuery = "SELECT COUNT(*) AS count FROM Vehiculo WHERE usuario_id = ? AND activo = 1";
-        const vehicleCountResult = await queryAsync(checkVehicleCountQuery, [usuario_id]);
+        const vehicleCountResult = await queryAsync(checkVehicleCountQuery, [owner]);
         
         if (vehicleCountResult[0].count >= 2) {
             return res.status(400).json({ error: 'No se pueden registrar más de 2 vehículos por usuario' });
@@ -359,13 +382,13 @@ app.post('/api/vehicles', authenticateToken, async (req, res) => {
         `;
         
         await queryAsync(insertQuery, [
-            marca, color, numero_placa, tipo, usuario_id, usa_espacio_ley7600 ? 1 : 0
+            marca, color, numero_placa, tipo, owner, usa_espacio_ley7600 ? 1 : 0
         ]);
 
         res.status(201).json({ message: 'Vehículo registrado exitosamente' });
     } catch (err) {
         console.error('Database Error:', err);
-        return res.status(500).json({ error: 'Error interno del servidor' });
+        return res.status(500).json({ error: 'Error interno del servidor: ' + err.message });
     }
 });
 

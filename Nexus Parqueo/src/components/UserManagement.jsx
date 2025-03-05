@@ -12,6 +12,7 @@ const UserManagement = () => {
   const [showForm, setShowForm] = useState(false);
   const [selectedUser, setSelectedUser] = useState(null);
   const [formMode, setFormMode] = useState('');
+  const [registeredUser, setRegisteredUser] = useState(null);
   
   // Form state
   const [formData, setFormData] = useState({
@@ -131,7 +132,20 @@ const UserManagement = () => {
         throw new Error(errorData.error || 'Error al procesar la solicitud');
       }
       
+      const responseData = await response.json();
+      
       setSuccess(formMode === 'edit' ? 'Usuario actualizado exitosamente' : 'Usuario creado exitosamente');
+      
+      // For new user registration, set the registered user data for the modal
+      if (formMode === 'add') {
+        const selectedRoleName = getRoleName(parseInt(formData.rol_id));
+        setRegisteredUser({
+          nombre: formData.nombre,
+          correo_electronico: formData.correo_electronico,
+          rol: selectedRoleName,
+          defaultPassword: 'Ulacit123' // Default password as mentioned in the notes
+        });
+      }
       
       // Reset form and refresh user list
       resetForm();
@@ -143,6 +157,12 @@ const UserManagement = () => {
     } finally {
       setLoading(false);
     }
+  };
+  
+  // Handle closing the success modal
+  const handleCloseModal = () => {
+    setSuccess('');
+    setRegisteredUser(null);
   };
   
   // Handle edit button click
@@ -263,7 +283,7 @@ const UserManagement = () => {
             </div>
           )}
           
-          {success && (
+          {success && !registeredUser && (
             <div className="bg-green-50 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
               <span className="block sm:inline">{success}</span>
             </div>
@@ -447,10 +467,10 @@ const UserManagement = () => {
                       <td className="py-3 px-4">
                         <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
                           user.activo === 1 
-                            ? 'bg-green-100 text-green-800' 
-                            : 'bg-red-100 text-red-800'
+                            ? 'bg-red-100 text-red-800' 
+                            : 'bg-green-100 text-green-800'
                         }`}>
-                          {user.activo === 1 ? 'Activo' : 'Inactivo'}
+                          {user.activo === 1 ? 'Inactivo' : 'Activo'}
                         </span>
                       </td>
                       <td className="py-3 px-4">
@@ -465,11 +485,11 @@ const UserManagement = () => {
                             onClick={() => handleToggleActive(user.usuario_id, user.activo === 1)}
                             className={`${
                               user.activo === 1 
-                                ? 'text-red-600 hover:text-red-800' 
-                                : 'text-green-600 hover:text-green-800'
+                                ? 'text-green-600 hover:text-green-800' 
+                                : 'text-red-600 hover:text-red-800'
                             }`}
                           >
-                            {user.activo === 1 ? 'Desactivar' : 'Activar'}
+                            {user.activo === 1 ? 'Activar' : 'Desactivar'}
                           </button>
                         </div>
                       </td>
@@ -499,6 +519,33 @@ const UserManagement = () => {
           </div>
         </div>
       </div>
+
+      {/* Success Modal */}
+      {success && registeredUser && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg p-6 max-w-md w-full">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">¡Registro Exitoso!</h2>
+            <div className="mb-4">
+              <p className="text-gray-600 mb-2">Usuario registrado con éxito. Detalles de la cuenta:</p>
+              <div className="bg-gray-50 p-4 rounded-md">
+                <p className="mb-2"><span className="font-semibold">Nombre:</span> {registeredUser.nombre}</p>
+                <p className="mb-2"><span className="font-semibold">Correo:</span> {registeredUser.correo_electronico}</p>
+                <p className="mb-2"><span className="font-semibold">Rol:</span> {registeredUser.rol}</p>
+                <p className="mb-2"><span className="font-semibold">Contraseña temporal:</span> {registeredUser.defaultPassword}</p>
+              </div>
+              <p className="text-sm text-gray-500 mt-2">El usuario deberá cambiar su contraseña en el primer inicio de sesión.</p>
+            </div>
+            <div className="flex justify-end">
+              <button
+                onClick={handleCloseModal}
+                className="bg-blue-600 hover:bg-blue-700 text-white font-medium py-2 px-4 rounded"
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

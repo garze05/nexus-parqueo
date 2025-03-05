@@ -132,6 +132,13 @@ const Dashboard = () => {
                   <span className="text-2xl mb-2">🚫</span>
                   <span className="font-medium text-center">Intentos Fallidos</span>
                 </button>
+                <button 
+                  onClick={() => navigate('/vehicles/register')}
+                  className="p-4 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors flex flex-col items-center justify-center h-32"
+                >
+                  <span className="text-2xl mb-2">🚗</span>
+                  <span className="font-medium text-center">Registrar Vehiculos</span>
+                </button>
               </>
             )}
             
@@ -157,11 +164,11 @@ const Dashboard = () => {
             {(hasRole([ROLES.STUDENT, ROLES.STAFF, ROLES.ADMIN, ROLES.SECURITY])) && (
               <>
                 <button 
-                  onClick={() => navigate('/my-vehicles')}
+                  onClick={() => navigate('/vehicle-check')}
                   className="p-4 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors flex flex-col items-center justify-center h-32"
                 >
                   <span className="text-2xl mb-2">🚗</span>
-                  <span className="font-medium text-center">Mis Vehículos</span>
+                  <span className="font-medium text-center">Revisar Vehículo</span>
                 </button>
                 <button 
                   onClick={() => navigate('/history')}

@@ -14,6 +14,9 @@ import Unauthorized from './components/Unauthorized';
 import VehicleControl from './components/VehicleControl';
 import MyVehicles from './components/MyVehicles';
 import SelectParking from './components/SelectParking';
+import RegisterVehicle from './components/RegisterVehicle';
+import UserManagement from './components/UserManagement';
+import CheckVehiculos from './components/CheckVehiculos';
 // Additional components to be implemented
 // import UserManagement from './components/UserManagement';
 // import History from './components/History';
@@ -52,10 +55,7 @@ function App() {
           <Route path="/users" element={
             <ProtectedRoute requiredRole={ROLES.ADMIN}>
               {/* <UserManagement /> */}
-              <div className="p-8 text-center">
-                <h2 className="text-2xl font-bold mb-4">Gestión de Usuarios</h2>
-                <p className="text-gray-600">Esta sección está en desarrollo.</p>
-              </div>
+              <UserManagement />
             </ProtectedRoute>
           } />
          
@@ -86,6 +86,12 @@ function App() {
                 <h2 className="text-2xl font-bold mb-4">Administrar Vehículos</h2>
                 <p className="text-gray-600">Esta sección está en desarrollo.</p>
               </div>
+            </ProtectedRoute>
+          } />
+
+          <Route path="/vehicles/register" element={
+            <ProtectedRoute requiredRole={ROLES.ADMIN}>
+              <RegisterVehicle />
             </ProtectedRoute>
           } />
           
@@ -120,6 +126,12 @@ function App() {
           <Route path="/vehicle-control" element={
             <ProtectedRoute requiredRole={ROLES.SECURITY}>
               <VehicleControl />
+            </ProtectedRoute>
+          } />
+
+          <Route path="/vehicle-check" element={
+            <ProtectedRoute requiredRole={ROLES.SECURITY}>
+              <CheckVehiculos />
             </ProtectedRoute>
           } />
           
