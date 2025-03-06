@@ -3,6 +3,7 @@ import { useAuth } from '../auth/AuthContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import UlacitLogo from '/src/assets/ulacit-logo.png';
 import UlacitBG from '/src/assets/ulacit-bg.png';
+import { ROLES, PERMISSIONS } from '../auth/roles';
 
 const Login = () => {
   const [username, setUsername] = useState('');
@@ -21,6 +22,17 @@ const Login = () => {
   useEffect(() => {
     if (user) {
       navigate('/dashboard');
+    }
+  }, [user, navigate]);
+
+  useEffect(() => {
+    if (user) {
+      // Check if user is a security officer and redirect accordingly
+      if (user.role === ROLES.SECURITY) {
+        navigate('/select-parking');
+      } else {
+        navigate('/dashboard');
+      }
     }
   }, [user, navigate]);
 
@@ -46,8 +58,13 @@ const Login = () => {
             } 
           });
         } else {
-          // Navigate to original destination or dashboard
-          navigate('/dashboard');
+          // Check if user has SECURITY role and redirect accordingly
+          if (result.user.role === ROLES.SECURITY) {
+            navigate('/select-parking');
+          } else {
+            // Navigate to original destination or dashboard
+            navigate('/dashboard');
+          }
         }
       } else {
         setError(result.error || 'Error al iniciar sesión');
