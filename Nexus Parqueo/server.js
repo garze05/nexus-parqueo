@@ -26,7 +26,7 @@ const connectionString = process.env.DB_CONNECTION_STRING ||
                         "server=localhost;Database=ParqueoUlacit;Trusted_Connection=Yes;Driver={SQL Server}";
 const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || 'UlacitUniversidadPrivadaNumeroUnoEnCentroamerica';
-const JWT_EXPIRES_IN = '24h';
+const JWT_EXPIRES_IN = '2h';
 
 // Helper function for SQL queries
 const queryAsync = (query, params = []) => {
@@ -331,6 +331,250 @@ app.get('/api/vehicles/count/:userId', authenticateToken, hasRole('ADMINISTRADOR
     }
 });
 
+// Check if vehicle can enter parking, and if vehicle exists in DB as well as if second attempt
+// Check if vehicle can enter parking, and if vehicle exists in DB as well as if second attempt
+app.get('/api/vehicle-check/:plate', async (req, res) => {
+    const plate = req.params.plate;
+    const parkingId = req.query.parkingId;
+    
+    if (!plate || !parkingId) {
+        return res.status(400).json({ 
+            estado: 'NO_PERMITIR_INGRESO',
+            motivo_rechazo: 'Placa de vehículo y ID de parqueo requeridos' 
+        });
+    }
+    
+    try {
+        // Check if vehicle exists and is active
+        const vehicleQuery = `
+            SELECT v.numero_placa as placa, v.marca, v.tipo, v.activo,
+                   CASE WHEN u.nombre IS NULL OR u.nombre = '' THEN 'No registrado' ELSE u.nombre END as nombre_propietario
+            FROM [ParqueoUlacit].[dbo].[Vehiculo] v
+            LEFT JOIN [ParqueoUlacit].[dbo].[Usuario] u ON v.usuario_id = u.usuario_id
+            WHERE v.numero_placa = ?`;
+        const vehicles = await queryAsync(vehicleQuery, [plate]);
+        
+        // Check parking lot capacity
+        const capacityQuery = `
+            SELECT p.capacidad_regulares, p.capacidad_motos, p.capacidad_ley7600,
+                   ISNULL(o.espacios_regulares_ocupados, 0) as espacios_regulares_ocupados,
+                   ISNULL(o.espacios_motos_ocupados, 0) as espacios_motos_ocupados,
+                   ISNULL(o.espacios_ley7600_ocupados, 0) as espacios_ley7600_ocupados
+            FROM [ParqueoUlacit].[dbo].[Parqueo] p
+            LEFT JOIN [ParqueoUlacit].[dbo].[OcupacionParqueo] o ON p.parqueo_id = o.parqueo_id
+            WHERE p.parqueo_id = ? AND p.activo = 1`;
+        
+        const capacityResult = await queryAsync(capacityQuery, [parkingId]);
+        
+        if (capacityResult.length === 0) {
+            return res.json({
+                placa: plate,
+                estado: 'NO_PERMITIR_INGRESO',
+                motivo_rechazo: 'Parqueo no encontrado o inactivo',
+                nombre_propietario: 'No registrado'
+            });
+        }
+        
+        // Check if vehicle is currently in a parking lot
+        const locationQuery = `
+            SELECT b.*, p.nombre as nombre_parqueo
+            FROM [ParqueoUlacit].[dbo].[Bitacora] b
+            JOIN [ParqueoUlacit].[dbo].[Parqueo] p ON b.parqueo_id = p.parqueo_id
+            WHERE b.numero_placa = ?
+            AND b.tipo_movimiento = 'INGRESO'
+            AND NOT EXISTS (
+                SELECT 1 
+                FROM [ParqueoUlacit].[dbo].[Bitacora] exit_record
+                WHERE exit_record.numero_placa = b.numero_placa
+                AND exit_record.tipo_movimiento = 'SALIDA'
+                AND exit_record.fecha >= b.fecha
+                AND exit_record.hora > b.hora
+            )
+            ORDER BY b.fecha DESC, b.hora DESC`;
+        
+        const locationResult = await queryAsync(locationQuery, [plate]);
+        
+        if (locationResult.length > 0) {
+            // Vehicle is in a parking lot
+            if (locationResult[0].parqueo_id.toString() === parkingId.toString()) {
+                // Vehicle is in the current parking lot - should register exit
+                return res.json({
+                    placa: plate,
+                    estado: 'REGISTRAR_SALIDA',
+                    parqueo_actual: locationResult[0].nombre_parqueo,
+                    nombre_propietario: vehicles.length > 0 ? vehicles[0].nombre_propietario : 'No registrado'
+                });
+            } else {
+                // Vehicle is in a different parking lot - cannot enter here
+                return res.json({
+                    placa: plate,
+                    estado: 'NO_PERMITIR_INGRESO',
+                    motivo_rechazo: `Vehículo se encuentra actualmente en ${locationResult[0].nombre_parqueo}`,
+                    nombre_propietario: vehicles.length > 0 ? vehicles[0].nombre_propietario : 'No registrado'
+                });
+            }
+        }
+        
+        //Check if parking lot is full (based on vehicle type)
+        const capacity = capacityResult[0];
+        const isRegularFull = capacity.espacios_regulares_ocupados >= capacity.capacidad_regulares;
+        
+        if (isRegularFull) {
+            return res.json({
+                placa: plate,
+                estado: 'NO_PERMITIR_INGRESO',
+                motivo_rechazo: 'Parqueo lleno - No hay espacios disponibles',
+                nombre_propietario: vehicles.length > 0 ? vehicles[0].nombre_propietario : 'No registrado'
+            });
+        }
+        
+        // Check business rules for unregistered/inactive vehicles
+        if (vehicles.length === 0 || !vehicles[0].activo) {
+            // Check if this is first-time entry for registration
+            const previousEntryQuery = `
+                SELECT COUNT(*) as entry_count
+                FROM [ParqueoUlacit].[dbo].[Bitacora]
+                WHERE numero_placa = ? AND tipo_movimiento = 'INGRESO'`;
+            
+            const previousEntryResult = await queryAsync(previousEntryQuery, [plate]);
+            const entryCount = previousEntryResult[0].entry_count;
+            
+            if (entryCount === 0) {
+                // First-time entry allowed for registration
+                return res.json({
+                    placa: plate,
+                    estado: 'PERMITIR_INGRESO',
+                    mensaje: 'Primer ingreso permitido para registro del vehículo',
+                    es_primer_ingreso: true,
+                    nombre_propietario: 'No registrado'
+                });
+            } else {
+                // Already entered once, but not registered properly
+                const reason = vehicles.length === 0 
+                    ? 'Vehículo no registrado en el sistema' 
+                    : 'Vehículo inactivo en el sistema';
+                    
+                return res.json({
+                    placa: plate,
+                    estado: 'NO_PERMITIR_INGRESO',
+                    motivo_rechazo: `${reason}. Ya se permitió un ingreso previo para registro.`,
+                    nombre_propietario: vehicles.length > 0 ? vehicles[0].nombre_propietario : 'No registrado'
+                });
+            }
+        }
+        
+        // If we get here, vehicle exists, is active, and parking has space
+        return res.json({
+            placa: vehicles[0].placa,
+            estado: 'PERMITIR_INGRESO',
+            tipo: vehicles[0].tipo,
+            marca: vehicles[0].marca,
+            nombre_propietario: vehicles[0].nombre_propietario
+        });
+        
+    } catch (err) {
+        console.error('Database Error:', err);
+        return res.status(500).json({ 
+            estado: 'NO_PERMITIR_INGRESO', 
+            motivo_rechazo: 'Error interno del servidor',
+            nombre_propietario: 'No registrado'
+        });
+    }
+});
+
+
+
+//Check detallado de vehiculos
+app.get('/api/vehicles/details/:plate', async (req, res) => {
+    const { plate } = req.params;
+    
+    try {
+      console.log('Searching for vehicle with plate:', plate);
+      
+      // Check if vehicle exists and is active
+      const vehicleQuery = `
+        SELECT 
+          vehiculo_id, marca, color, numero_placa, tipo, 
+          usuario_id, usa_espacio_ley7600, activo, fecha_registro
+        FROM [ParqueoUlacit].[dbo].[Vehiculo] 
+        WHERE numero_placa = ?
+      `;
+      
+      const vehicles = await queryAsync(vehicleQuery, [plate]);
+      console.log('Vehicle query results:', vehicles);
+      
+      if (!vehicles || vehicles.length === 0) {
+        console.log('No vehicle found with plate:', plate);
+        return res.status(404).json({ error: 'Vehículo no encontrado' });
+      }
+      
+      const vehicle = vehicles[0];
+      
+      // Get owner information
+      const ownerQuery = `
+        SELECT 
+          usuario_id, nombre, correo_electronico, 
+          identificacion, numero_carne, rol_id, activo
+        FROM [ParqueoUlacit].[dbo].[Usuario] 
+        WHERE usuario_id = ?
+      `;
+      
+      const owners = await queryAsync(ownerQuery, [vehicle.usuario_id]);
+      
+      if (!owners || owners.length === 0) {
+        console.log('Owner not found for vehicle:', vehicle.vehiculo_id);
+        return res.status(404).json({ error: 'Propietario no encontrado' });
+      }
+      
+      const owner = owners[0];
+      
+      // Check if vehicle is currently parked
+      const parkingQuery = `
+        SELECT 
+          v.vigilancia_id, v.parqueo_id, v.fecha, v.hora_inicio, v.hora_fin,
+          p.nombre, p.capacidad_regulares, p.capacidad_motos, p.capacidad_ley7600
+        FROM [ParqueoUlacit].[dbo].[Vigilancia] v
+        JOIN [ParqueoUlacit].[dbo].[Parqueo] p ON v.parqueo_id = p.parqueo_id
+        WHERE v.activo = 1
+        AND EXISTS (
+          SELECT 1 FROM [ParqueoUlacit].[dbo].[Bitacora] b 
+          WHERE b.numero_placa = ? 
+          AND b.tipo_movimiento = 'INGRESO' 
+          AND b.parqueo_id = v.parqueo_id
+        )
+      `;
+      
+      const currentParking = await queryAsync(parkingQuery, [plate]);
+      
+      // Get parking history - using TOP instead of LIMIT for SQL Server
+      const historyQuery = `
+        SELECT TOP 50
+          b.registro_id, b.parqueo_id, 
+          b.tipo_movimiento, b.fecha, b.hora,
+          b.motivo_rechazo, b.oficial_id, 
+          p.nombre AS parqueo_nombre
+        FROM [ParqueoUlacit].[dbo].[Bitacora] b
+        JOIN [ParqueoUlacit].[dbo].[Parqueo] p ON b.parqueo_id = p.parqueo_id
+        WHERE b.numero_placa = ?
+        ORDER BY b.fecha DESC, b.hora DESC
+      `;
+      
+      const parkingHistory = await queryAsync(historyQuery, [plate]);
+      
+      // Return all data
+      res.json({
+        vehicle,
+        owner,
+        currentParking: currentParking.length > 0 ? currentParking[0] : null,
+        parkingHistory
+      });
+      
+    } catch (error) {
+      console.error('Database query error:', error);
+      res.status(500).json({ error: 'Error en la consulta de la base de datos: ' + error.message });
+    }
+});
+
 // Get all roles
 app.get('/api/roles', authenticateToken, async (req, res) => {
     try {
@@ -469,34 +713,6 @@ app.get('/api/parkings/:id/occupation', authenticateToken, hasRole(['ADMINISTRAD
     }
 });
 
-// Check vehicle status (for security guards)
-app.get('/api/vehicle-check/:plate', authenticateToken, hasRole('OFICIAL_SEGURIDAD'), async (req, res) => {
-    const plate = req.params.plate;
-    const parkingId = req.query.parkingId;
-    
-    if (!plate || !parkingId) {
-        return res.status(400).json({ error: 'Se requiere la placa y el ID del parqueo' });
-    }
-
-    try {
-        // Call stored procedure to check vehicle status
-        const query = `
-            DECLARE @estado NVARCHAR(50), @motivo NVARCHAR(255);
-            EXEC VerificarEstadoVehiculo @p_numero_placa = ?, @p_parqueo_id = ?;
-        `;
-        
-        const result = await queryAsync(query, [plate, parkingId]);
-        
-        if (!result || result.length === 0) {
-            return res.status(500).json({ error: 'Error al verificar el estado del vehículo' });
-        }
-        
-        res.json(result[0]);
-    } catch (err) {
-        console.error('Database Error:', err);
-        return res.status(500).json({ error: 'Error interno del servidor' });
-    }
-});
 
 // Register vehicle entry
 app.post('/api/vehicle-entries', authenticateToken, hasRole('OFICIAL_SEGURIDAD'), async (req, res) => {

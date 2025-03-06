@@ -9,15 +9,13 @@ import Dashboard from './components/Dashboard';
 import Register from './components/Register';
 import ChangePassword from './components/ChangePassword';
 import Unauthorized from './components/Unauthorized';
-
-// Import other components
 import VehicleControl from './components/VehicleControl';
 import MyVehicles from './components/MyVehicles';
 import SelectParking from './components/SelectParking';
 import RegisterVehicle from './components/RegisterVehicle';
 import UserManagement from './components/UserManagement';
 import CheckVehiculos from './components/CheckVehiculos';
-// Additional components to be implemented
+
 // import UserManagement from './components/UserManagement';
 // import History from './components/History';
 // import FailedEntries from './components/FailedEntries';
@@ -130,7 +128,7 @@ function App() {
           } />
 
           <Route path="/vehicle-check" element={
-            <ProtectedRoute requiredRole={ROLES.SECURITY}>
+            <ProtectedRoute requiredPermission={PERMISSIONS.CHECK_VEHICLES}>
               <CheckVehiculos />
             </ProtectedRoute>
           } />

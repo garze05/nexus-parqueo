@@ -47,9 +47,11 @@ const VehicleControl = () => {
 
   // Reset error and success messages when changing the plate
   useEffect(() => {
-    setError('');
-    setSuccess('');
-    setVehicleStatus(null);
+    if (plate !== '') {  // Only reset when actively typing, not when clearing
+      setError('');
+      setSuccess('');
+      setVehicleStatus(null);
+    }
   }, [plate]);
 
   // Focus on plate input when component mounts
@@ -290,6 +292,44 @@ const VehicleControl = () => {
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-xl font-semibold mb-4">Resultado de Verificación</h3>
             
+            {/* Vehicle information */}
+            <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <p className="text-gray-600">Placa:</p>
+                  <p className="text-xl font-bold">{vehicleStatus.placa}</p>
+                </div>
+                <div>
+                  <p className="text-gray-600">Propietario:</p>
+                  <p className="text-xl font-bold">{vehicleStatus.nombre_propietario || "No registrado"}</p>
+                </div>
+                {vehicleStatus.tipo_vehiculo && (
+                  <div>
+                    <p className="text-gray-600">Tipo de Vehículo:</p>
+                    <p className="font-medium">{vehicleStatus.tipo_vehiculo}</p>
+                  </div>
+                )}
+                {vehicleStatus.marca && (
+                  <div>
+                    <p className="text-gray-600">Marca:</p>
+                    <p className="font-medium">{vehicleStatus.marca}</p>
+                  </div>
+                )}
+                {vehicleStatus.modelo && (
+                  <div>
+                    <p className="text-gray-600">Modelo:</p>
+                    <p className="font-medium">{vehicleStatus.modelo}</p>
+                  </div>
+                )}
+                {vehicleStatus.color && (
+                  <div>
+                    <p className="text-gray-600">Color:</p>
+                    <p className="font-medium">{vehicleStatus.color}</p>
+                  </div>
+                )}
+              </div>
+            </div>
+            
             {/* Traffic light */}
             <div className="flex justify-center mb-6">
               <div className={`w-32 h-32 rounded-full flex items-center justify-center ${
@@ -299,7 +339,7 @@ const VehicleControl = () => {
                     ? 'bg-blue-500'
                     : 'bg-red-500'
               }`}>
-                <span className="text-5xl">
+                <span className="text-5xl text-white">
                   {vehicleStatus.estado === 'PERMITIR_INGRESO' 
                     ? '✓' 
                     : vehicleStatus.estado === 'REGISTRAR_SALIDA'
@@ -320,8 +360,18 @@ const VehicleControl = () => {
                 }
               </h4>
               
+              {vehicleStatus.es_primer_ingreso && (
+                <p className="text-yellow-600 mt-2 font-medium">
+                  ADVERTENCIA: Primer ingreso para registro del vehículo
+                </p>
+              )}
+              
               {vehicleStatus.motivo_rechazo && (
                 <p className="text-red-600 mt-2">{vehicleStatus.motivo_rechazo}</p>
+              )}
+              
+              {vehicleStatus.mensaje && (
+                <p className="text-blue-600 mt-2">{vehicleStatus.mensaje}</p>
               )}
             </div>
             
