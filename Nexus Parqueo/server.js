@@ -331,7 +331,7 @@ app.get('/api/vehicles/count/:userId', authenticateToken, hasRole('ADMINISTRADOR
     }
 });
 
-// Check if vehicle can enter parking, and if vehicle exists in DB as well as if second attempt
+
 // Check if vehicle can enter parking, and if vehicle exists in DB as well as if second attempt
 app.get('/api/vehicle-check/:plate', async (req, res) => {
     const plate = req.params.plate;
@@ -714,7 +714,47 @@ app.get('/api/parkings/:id/occupation', authenticateToken, hasRole(['ADMINISTRAD
 });
 
 
-// Register vehicle entry
+// vehicle-exits API endpoint
+app.post('/api/vehicle-exits', authenticateToken, hasRole('OFICIAL_SEGURIDAD'), async (req, res) => {
+    const { plate, parkingId } = req.body;
+    const officerId = req.user.id;
+    
+    if (!plate || !parkingId) {
+        return res.status(400).json({ error: 'Se requiere la placa y el ID del parqueo' });
+    }
+
+    try {
+        // Call stored procedure to register vehicle exit
+        const query = `
+            DECLARE @resultado NVARCHAR(20), @motivo NVARCHAR(255);
+            EXEC RegistrarSalidaVehiculo
+                @p_numero_placa = ?, 
+                @p_parqueo_id = ?, 
+                @p_oficial_id = ?;
+        `;
+        
+        const result = await queryAsync(query, [plate, parkingId, officerId]);
+        
+        if (!result || result.length === 0) {
+            return res.status(500).json({ error: 'Error al registrar la salida del vehículo' });
+        }
+        
+        // Check if exit was rejected
+        if (result[0].resultado === 'RECHAZO') {
+            return res.status(400).json({ 
+                resultado: 'RECHAZO', 
+                motivo_rechazo: result[0].motivo_rechazo || 'Salida rechazada por el sistema' 
+            });
+        }
+        
+        res.json(result[0]);
+    } catch (err) {
+        console.error('Database Error:', err);
+        return res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// vehicle-entries API endpoint
 app.post('/api/vehicle-entries', authenticateToken, hasRole('OFICIAL_SEGURIDAD'), async (req, res) => {
     const { plate, parkingId } = req.body;
     const officerId = req.user.id;
@@ -739,36 +779,12 @@ app.post('/api/vehicle-entries', authenticateToken, hasRole('OFICIAL_SEGURIDAD')
             return res.status(500).json({ error: 'Error al registrar el ingreso del vehículo' });
         }
         
-        res.json(result[0]);
-    } catch (err) {
-        console.error('Database Error:', err);
-        return res.status(500).json({ error: 'Error interno del servidor' });
-    }
-});
-
-// Register vehicle exit
-app.post('/api/vehicle-exits', authenticateToken, hasRole('OFICIAL_SEGURIDAD'), async (req, res) => {
-    const { plate, parkingId } = req.body;
-    const officerId = req.user.id;
-    
-    if (!plate || !parkingId) {
-        return res.status(400).json({ error: 'Se requiere la placa y el ID del parqueo' });
-    }
-
-    try {
-        // Call stored procedure to register vehicle exit
-        const query = `
-            DECLARE @resultado NVARCHAR(20);
-            EXEC RegistrarSalidaVehiculo
-                @p_numero_placa = ?, 
-                @p_parqueo_id = ?, 
-                @p_oficial_id = ?;
-        `;
-        
-        const result = await queryAsync(query, [plate, parkingId, officerId]);
-        
-        if (!result || result.length === 0) {
-            return res.status(500).json({ error: 'Error al registrar la salida del vehículo' });
+        // Check if entry was rejected
+        if (result[0].resultado === 'RECHAZO') {
+            return res.status(400).json({ 
+                resultado: 'RECHAZO', 
+                motivo_rechazo: result[0].motivo_rechazo || 'Ingreso rechazado por el sistema' 
+            });
         }
         
         res.json(result[0]);

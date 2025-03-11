@@ -45,16 +45,16 @@ const VehicleControl = () => {
     fetchAssignedParking();
   }, []);
 
-  // Reset error and success messages when changing the plate
+  
   useEffect(() => {
-    if (plate !== '') {  // Only reset when actively typing, not when clearing
+    if (plate !== '') {  
       setError('');
       setSuccess('');
       setVehicleStatus(null);
     }
   }, [plate]);
 
-  // Focus on plate input when component mounts
+  
   useEffect(() => {
     if (plateInputRef.current) {
       plateInputRef.current.focus();
@@ -93,7 +93,6 @@ const VehicleControl = () => {
       const data = await response.json();
       setVehicleStatus(data);
       
-      // Clear plate input after successful check
       setPlate('');
       if (plateInputRef.current) {
         plateInputRef.current.focus();
@@ -106,97 +105,103 @@ const VehicleControl = () => {
     }
   };
 
-  const registerEntry = async () => {
-    setLoading(true);
-    setError('');
-    setSuccess('');
+// registerExit function in VehicleControl.jsx
+const registerExit = async () => {
+  setLoading(true);
+  setError('');
+  setSuccess('');
+  
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch('http://localhost:3001/api/vehicle-exits', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        plate: vehicleStatus.placa || plate,
+        parkingId: parqueoAsignado.parqueo_id
+      })
+    });
     
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/vehicle-entries', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          plate: vehicleStatus.placa || plate,
-          parkingId: parqueoAsignado.parqueo_id
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Error al registrar el ingreso');
-      }
-      
-      const data = await response.json();
-      
-      if (data.resultado === 'INGRESO') {
-        setSuccess('Ingreso registrado exitosamente');
-      } else {
-        setError(`Ingreso rechazado: ${data.motivo_rechazo}`);
-      }
-      
-      // Reset state
-      setVehicleStatus(null);
-      setPlate('');
-      if (plateInputRef.current) {
-        plateInputRef.current.focus();
-      }
-    } catch (error) {
-      console.error('Error registering entry:', error);
-      setError('Error al registrar el ingreso');
-    } finally {
-      setLoading(false);
+    const data = await response.json();
+    
+    if (!response.ok) {
+      setError(`Salida rechazada: ${data.motivo_rechazo || 'Error desconocido'}`);
+      return;
     }
-  };
-
-  const registerExit = async () => {
-    setLoading(true);
-    setError('');
-    setSuccess('');
     
-    try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3001/api/vehicle-exits', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        },
-        credentials: 'include',
-        body: JSON.stringify({
-          plate: vehicleStatus.placa || plate,
-          parkingId: parqueoAsignado.parqueo_id
-        })
-      });
-      
-      if (!response.ok) {
-        throw new Error('Error al registrar la salida');
-      }
-      
-      const data = await response.json();
-      
-      if (data.resultado === 'SALIDA') {
-        setSuccess('Salida registrada exitosamente');
-      } else {
-        setError('Error al registrar la salida');
-      }
-      
-      // Reset state
-      setVehicleStatus(null);
-      setPlate('');
-      if (plateInputRef.current) {
-        plateInputRef.current.focus();
-      }
-    } catch (error) {
-      console.error('Error registering exit:', error);
+    if (data.resultado === 'SALIDA') {
+      setSuccess('Salida registrada exitosamente');
+    } else if (data.resultado === 'RECHAZO') {
+      setError(`Salida rechazada: ${data.motivo_rechazo || 'Error desconocido'}`);
+    } else {
       setError('Error al registrar la salida');
-    } finally {
-      setLoading(false);
     }
-  };
+    
+    setVehicleStatus(null);
+    setPlate('');
+    if (plateInputRef.current) {
+      plateInputRef.current.focus();
+    }
+  } catch (error) {
+    console.error('Error registering exit:', error);
+    setError('Error al registrar la salida');
+  } finally {
+    setLoading(false);
+  }
+};
+
+// registerEntry function in VehicleControl.jsx
+const registerEntry = async () => {
+  setLoading(true);
+  setError('');
+  setSuccess('');
+  
+  try {
+    const token = localStorage.getItem('token');
+    const response = await fetch('http://localhost:3001/api/vehicle-entries', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      credentials: 'include',
+      body: JSON.stringify({
+        plate: vehicleStatus.placa || plate,
+        parkingId: parqueoAsignado.parqueo_id
+      })
+    });
+    
+    const data = await response.json();
+    
+    if (!response.ok) {
+      setError(`Ingreso rechazado: ${data.motivo_rechazo || 'Error desconocido'}`);
+      return;
+    }
+    
+    if (data.resultado === 'INGRESO') {
+      setSuccess('Ingreso registrado exitosamente');
+    } else if (data.resultado === 'RECHAZO') {
+      setError(`Ingreso rechazado: ${data.motivo_rechazo || 'Error desconocido'}`);
+    } else {
+      setError('Error al registrar el ingreso');
+    }
+    
+    setVehicleStatus(null);
+    setPlate('');
+    if (plateInputRef.current) {
+      plateInputRef.current.focus();
+    }
+  } catch (error) {
+    console.error('Error registering entry:', error);
+    setError('Error al registrar el ingreso');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleKeyPress = (e) => {
     if (e.key === 'Enter') {

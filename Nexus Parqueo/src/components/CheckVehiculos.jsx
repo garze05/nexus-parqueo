@@ -10,9 +10,20 @@ const CheckVehiculos = () => {
   const [vehicleData, setVehicleData] = useState(null);
   const [activeTab, setActiveTab] = useState('vehicle');
 
+  const validatePlate = (plate) => {
+    // Regex para placas ticas
+    const plateRegex = /^[A-Z0-9]{1,7}$/;
+    return plateRegex.test(plate);
+  };
+
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('Consulta de vehículo iniciada');
+
+    if (!validatePlate(plate)) {
+      setError('Formato de placa inválido. Por favor verifica el formato correcto.');
+      return;
+    }
 
     setLoading(true);
     setError('');
@@ -21,8 +32,10 @@ const CheckVehiculos = () => {
 
     try {
       console.log('Consultando placa:', plate);
+
+      const encodedPlate = encodeURIComponent(plate);
       
-      const response = await fetch(`http://localhost:3001/api/vehicles/details/${plate}`, {
+      const response = await fetch(`http://localhost:3001/api/vehicles/details/${encodedPlate}`, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
@@ -148,11 +161,13 @@ const CheckVehiculos = () => {
                 id="plate"
                 type="text"
                 value={plate}
-                onChange={(e) => setPlate(e.target.value)}
+                onChange={(e) => setPlate(e.target.value.toUpperCase())}
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Ingrese la placa para verificar"
+                maxLength={7}
               />
+              <small className="text-gray-500 mt-1 block">Formato: ABC123, 123456, D1234, M123456</small>
             </div>
             <div className="flex items-end">
               <button

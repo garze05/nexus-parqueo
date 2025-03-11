@@ -256,25 +256,6 @@ const Dashboard = () => {
             )}
           </div>
         )}
-
-        {/* System Info Card */}
-        <div className="bg-white rounded-lg shadow-md p-6 mt-6">
-          <h3 className="text-xl font-semibold mb-4 text-[#220236]">Información del Sistema</h3>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-            <div className="border rounded-lg p-4 bg-blue-50">
-              <h4 className="font-medium text-blue-800 mb-2 ">Estado del Sistema</h4>
-              <p className="text-green-600 font-semibold">Activo</p>
-            </div>
-            <div className="border rounded-lg p-4 bg-green-50">
-              <h4 className="font-medium text-green-800 mb-2">Última Actualización</h4>
-              <p className="text-gray-700">{new Date().toLocaleString()}</p>
-            </div>
-            <div className="border rounded-lg p-4 bg-purple-50">
-              <h4 className="font-medium text-purple-800 mb-2">Versión</h4>
-              <p className="text-gray-700">1.0.0</p>
-            </div>
-          </div>
-        </div>
       </div>
     </DashboardLayout>
   );
