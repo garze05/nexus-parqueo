@@ -4,7 +4,8 @@ import DashboardLayout from './DashboardLayout';
 
 const RegisterVehicle = () => {
   const [formData, setFormData] = useState({
-    plate: '',
+    plateNumber: '',
+    platePrefix: '',  // Default empty selection
     brand: '',
     owner: '',
     color: '',
@@ -20,6 +21,9 @@ const RegisterVehicle = () => {
   // Track user vehicle counts
   const [userVehicleCounts, setUserVehicleCounts] = useState({});
   const [isCheckingCount, setIsCheckingCount] = useState(false);
+
+  // Available plate prefixes
+  const platePrefixes = ['', 'CC','CD', 'CL', 'D','MOT','VE', 'VH'];
 
   // Fetch users when component mounts
   useEffect(() => {
@@ -101,20 +105,71 @@ const RegisterVehicle = () => {
     }
   }, [formData.owner]);
 
+  // Set platePrefix when type or usa_espacio_ley7600 changes
+  useEffect(() => {
+    if (formData.usa_espacio_ley7600 && formData.platePrefix === '') {
+      // Only set D as default if no prefix is selected
+      setFormData(prev => ({
+        ...prev,
+        platePrefix: 'D',
+        // Ensure that when Ley 7600 is selected, type cannot be MOTO
+        tipo: prev.tipo === 'MOTO' ? 'VEHICULO' : prev.tipo
+      }));
+    } else if (formData.tipo === 'MOTO' && formData.platePrefix !== 'MOT') {
+      setFormData(prev => ({
+        ...prev,
+        platePrefix: 'MOT'
+      }));
+    } else if (formData.tipo === 'VEHICULO' && formData.platePrefix === 'MOT') {
+      setFormData(prev => ({
+        ...prev,
+        platePrefix: ''  // Reset to blank if vehicle type is changed to VEHICULO from MOTO
+      }));
+    }
+  }, [formData.usa_espacio_ley7600, formData.tipo]);
+
   const handleInputChange = (e) => {
     const { name, value, type, checked } = e.target;
-    setFormData({
-      ...formData,
-      [name]: type === 'checkbox' ? checked : value
-    });
+    
+    // For the plateNumber field, only allow numbers
+    if (name === 'plateNumber') {
+      // Replace any non-digit character with an empty string
+      const numbersOnly = value.replace(/\D/g, '');
+      setFormData({
+        ...formData,
+        [name]: numbersOnly
+      });
+    } else if (name === 'usa_espacio_ley7600' && checked) {
+      // If checkbox is checked, ensure that type is not MOTO
+      // Suggest D as prefix but don't force it
+      setFormData({
+        ...formData,
+        [name]: checked,
+        tipo: formData.tipo === 'MOTO' ? 'VEHICULO' : formData.tipo,
+        // Only set D as default if no prefix is already selected
+        platePrefix: formData.platePrefix === '' ? 'D' : formData.platePrefix
+      });
+    } else if (name === 'tipo' && value === 'MOTO' && formData.usa_espacio_ley7600) {
+      // Prevent setting type to MOTO if usa_espacio_ley7600 is checked
+      // Keep the current value and do not update
+      return;
+    } else {
+      setFormData({
+        ...formData,
+        [name]: type === 'checkbox' ? checked : value
+      });
+    }
   };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     console.log('Formulario de registro de vehículo enviado');
 
+    // Combine plateNumber and plateLetter to create the complete plate
+    const completePlate = `${formData.platePrefix}${formData.plateNumber}`;
+
     // Validate form data
-    if (!formData.plate.trim() || !formData.brand.trim() || !formData.owner || !formData.color.trim()) {
+    if (!formData.plateNumber.trim() || !formData.brand.trim() || !formData.owner || !formData.color.trim()) {
       setError('Por favor complete todos los campos requeridos');
       return;
     }
@@ -138,16 +193,7 @@ const RegisterVehicle = () => {
     try {
       console.log('Iniciando intento de registro...');
       console.log('Enviando datos:', { 
-        numero_placa: formData.plate,
-        marca: formData.brand,
-        owner: formData.owner,
-        color: formData.color,
-        tipo: formData.tipo,
-        usa_espacio_ley7600: formData.usa_espacio_ley7600
-      });
-
-      console.log('Enviando datos:', {
-        numero_placa: formData.plate,
+        numero_placa: completePlate,
         marca: formData.brand,
         owner: formData.owner,
         color: formData.color,
@@ -162,7 +208,7 @@ const RegisterVehicle = () => {
           'Authorization': `Bearer ${localStorage.getItem('token')}`
         },
         body: JSON.stringify({
-          numero_placa: formData.plate,
+          numero_placa: completePlate,
           marca: formData.brand,
           owner: formData.owner,
           color: formData.color,
@@ -188,7 +234,8 @@ const RegisterVehicle = () => {
       
       // Reset form after successful submission
       setFormData({
-        plate: '',
+        plateNumber: '',
+        platePrefix: '',
         brand: '',
         owner: '',
         color: '',
@@ -215,6 +262,14 @@ const RegisterVehicle = () => {
     }
   };
 
+  // Function to check if prefix option should be disabled
+  const isPrefixDisabled = (prefix) => {
+    if (formData.tipo === 'MOTO') {
+      return prefix !== 'MOT';
+    }
+    return false;
+  };
+
   return (
     <DashboardLayout headerText={"Registrar Vehículo"}>
       <div className="container mx-auto p-6">
@@ -239,25 +294,46 @@ const RegisterVehicle = () => {
             <form onSubmit={handleSubmit} className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <label htmlFor="plate" className="block text-sm font-medium text-gray-700">
+                  <label htmlFor="plateNumber" className="block text-sm font-medium text-gray-700">
                     Placa del Vehículo
                   </label>
-                  <input
-                    id="plate"
-                    name="plate"
-                    type="text"
-                    value={formData.plate}
-                    onChange={(e) => handleInputChange({
-                      target: {
-                        name: e.target.name,
-                        value: e.target.value.toUpperCase(),
-                        type: e.target.type
-                      }
-                    })}
-                    required
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                    placeholder="Ingrese la placa"
-                  />
+                  <div className="flex">
+                    <select
+                      id="platePrefix"
+                      name="platePrefix"
+                      value={formData.platePrefix}
+                      onChange={handleInputChange}
+                      disabled={formData.tipo === 'MOTO'}
+                      className={`px-3 py-2 border border-gray-300 rounded-l-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                        formData.tipo === 'MOTO' ? 'bg-gray-100' : ''
+                      }`}
+                    >
+                      {platePrefixes.map(prefix => (
+                        <option 
+                          key={prefix || 'blank'} 
+                          value={prefix}
+                          disabled={isPrefixDisabled(prefix)}
+                        >
+                          {prefix || 'Seleccione prefijo'}
+                        </option>
+                      ))}
+                    </select>
+                    <input
+                      id="plateNumber"
+                      name="plateNumber"
+                      type="text"
+                      value={formData.plateNumber}
+                      onChange={handleInputChange}
+                      required
+                      className="w-full px-3 py-2 border border-gray-300 rounded-r-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      placeholder="Ingrese números de placa"
+                    />
+                  </div>
+                  <p className="text-xs text-gray-500">
+                    Seleccione el prefijo a la izquierda e ingrese solo los números de la placa en el campo derecho.
+                    {formData.tipo === 'MOTO' && <span className="text-blue-600"> Para motocicletas, el prefijo "MOT" es automático.</span>}
+                    {formData.usa_espacio_ley7600 && <span className="text-blue-600"> Para Ley 7600, se recomienda el prefijo "D" pero puede seleccionar otro.</span>}
+                  </p>
                 </div>
 
                 <div className="space-y-2">
@@ -305,8 +381,13 @@ const RegisterVehicle = () => {
                     required
                   >
                     <option value="VEHICULO">Vehículo</option>
-                    <option value="MOTO">Motocicleta</option>
+                    <option value="MOTO" disabled={formData.usa_espacio_ley7600}>Motocicleta</option>
                   </select>
+                  {formData.usa_espacio_ley7600 && formData.tipo !== 'MOTO' && (
+                    <p className="text-xs text-red-500 mt-1">
+                      Nota: Para motocicletas no está disponible la selección Ley 7600.
+                    </p>
+                  )}
                 </div>
 
                 <div className="space-y-2 md:col-span-2">
@@ -355,9 +436,19 @@ const RegisterVehicle = () => {
                       className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
                       disabled={formData.tipo === 'MOTO'}
                     />
-                    <label htmlFor="usa_espacio_ley7600" className="ml-2 block text-sm text-gray-700">
+                    <label htmlFor="usa_espacio_ley7600" className={`ml-2 block text-sm ${formData.tipo === 'MOTO' ? 'text-gray-500' : 'text-gray-700'}`}>
                       Utiliza espacio Ley 7600
                     </label>
+                    {formData.usa_espacio_ley7600 && (
+                      <span className="ml-2 text-sm text-blue-600">
+                        (Se recomienda el prefijo "D" para la placa)
+                      </span>
+                    )}
+                    {formData.tipo === 'MOTO' && (
+                      <span className="ml-2 text-xs text-red-500">
+                        (No disponible para Motocicletas)
+                      </span>
+                    )}
                   </div>
                 </div>
               </div>
