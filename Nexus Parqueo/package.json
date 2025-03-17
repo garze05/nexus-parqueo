@@ -3,8 +3,8 @@
   "version": "1.0.0",
   "main": "server.js",
   "scripts": {
-    "test": "jest",
     "start": "node server.js",
+    "test": "jest",
     "dev": "vite",
     "build": "vite build",
     "dev:all": "concurrently \"npm run start\" \"npm run dev\"",
