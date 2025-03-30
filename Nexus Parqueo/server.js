@@ -919,6 +919,144 @@ app.get('/api/failed-entries', authenticateToken, hasRole('ADMINISTRADOR'), asyn
     }
 });
 
+
+// Add these endpoints to your Express app in server.js
+
+// Get parking logs with filtering
+app.get('/api/parking-logs', authenticateToken, async (req, res) => {
+    const { startDate, endDate, parkingId, plate } = req.query;
+    
+    // Validate required parameters
+    if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'Se requieren fechas de inicio y fin' });
+    }
+    
+    try {
+        // Base query
+        let query = `
+            SELECT b.registro_id, b.parqueo_id, b.tipo_movimiento, 
+                  b.fecha, b.hora, b.motivo_rechazo, b.oficial_id,
+                  b.numero_placa, p.nombre AS nombre_parqueo,
+                  CASE 
+                      WHEN u.nombre IS NULL THEN 'No registrado' 
+                      ELSE u.nombre 
+                  END AS nombre_propietario
+            FROM Bitacora b
+            JOIN Parqueo p ON b.parqueo_id = p.parqueo_id
+            LEFT JOIN Vehiculo v ON b.numero_placa = v.numero_placa
+            LEFT JOIN Usuario u ON v.usuario_id = u.usuario_id
+            WHERE b.fecha BETWEEN ? AND ?
+        `;
+        
+        // Parameters array
+        let params = [startDate, endDate];
+        
+        // Add parking filter if provided
+        if (parkingId) {
+            query += " AND b.parqueo_id = ?";
+            params.push(parkingId);
+        }
+        
+        // Add plate filter if provided
+        if (plate) {
+            query += " AND b.numero_placa = ?";
+            params.push(plate);
+        }
+        
+        // Add order by
+        query += " ORDER BY b.fecha DESC, b.hora DESC";
+        
+        // Execute query
+        const logs = await queryAsync(query, params);
+        
+        res.json(logs);
+    } catch (err) {
+        console.error('Database Error:', err);
+        return res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// Get parking statistics
+app.get('/api/parking-stats', authenticateToken, async (req, res) => {
+    const { parkingId } = req.query;
+    const today = new Date().toISOString().split('T')[0];
+    
+    try {
+        // Get today's entry/exit counts
+        const query = `
+            SELECT 
+                COUNT(CASE WHEN tipo_movimiento = 'INGRESO' THEN 1 END) AS total_ingresos,
+                COUNT(CASE WHEN tipo_movimiento = 'SALIDA' THEN 1 END) AS total_salidas,
+                COUNT(CASE WHEN tipo_movimiento = 'INGRESO' AND motivo_rechazo IS NOT NULL THEN 1 END) AS ingresos_rechazados,
+                COUNT(DISTINCT numero_placa) AS vehiculos_unicos
+            FROM Bitacora
+            WHERE fecha = ?
+            ${parkingId ? 'AND parqueo_id = ?' : ''}
+        `;
+        
+        const params = parkingId ? [today, parkingId] : [today];
+        const stats = await queryAsync(query, params);
+        
+        res.json({
+            stats: stats[0],
+            date: today
+        });
+    } catch (err) {
+        console.error('Database Error:', err);
+        return res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// Get most frequent users (for analytics)
+app.get('/api/frequent-users', authenticateToken, hasRole('ADMINISTRADOR'), async (req, res) => {
+    const { startDate, endDate, parkingId, limit = 10 } = req.query;
+    
+    if (!startDate || !endDate) {
+        return res.status(400).json({ error: 'Se requieren fechas de inicio y fin' });
+    }
+    
+    try {
+        let query = `
+            SELECT TOP ${parseInt(limit)}
+                b.numero_placa,
+                COUNT(*) AS total_visitas,
+                MAX(b.fecha) AS ultima_visita,
+                CASE 
+                    WHEN u.nombre IS NULL THEN 'No registrado' 
+                    ELSE u.nombre 
+                END AS nombre_propietario
+            FROM Bitacora b
+            LEFT JOIN Vehiculo v ON b.numero_placa = v.numero_placa
+            LEFT JOIN Usuario u ON v.usuario_id = u.usuario_id
+            WHERE b.tipo_movimiento = 'INGRESO'
+              AND b.fecha BETWEEN ? AND ?
+        `;
+        
+        let params = [startDate, endDate];
+        
+        if (parkingId) {
+            query += " AND b.parqueo_id = ?";
+            params.push(parkingId);
+        }
+        
+        query += `
+            GROUP BY b.numero_placa, 
+            CASE 
+                WHEN u.nombre IS NULL THEN 'No registrado' 
+                ELSE u.nombre 
+            END
+            ORDER BY total_visitas DESC
+        `;
+        
+        const frequentUsers = await queryAsync(query, params);
+        
+        res.json(frequentUsers);
+    } catch (err) {
+        console.error('Database Error:', err);
+        return res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
 const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);

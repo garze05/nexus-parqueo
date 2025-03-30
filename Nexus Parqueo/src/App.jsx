@@ -15,10 +15,12 @@ import SelectParking from './components/SelectParking';
 import RegisterVehicle from './components/RegisterVehicle';
 import UserManagement from './components/UserManagement';
 import CheckVehiculos from './components/CheckVehiculos';
+import LiveParkingMonitor from './components/LiveParkingMonitor';
+import ParkingReportGenerator from './components/ParkingReportGenerator';
 
 // import UserManagement from './components/UserManagement';
 // import History from './components/History';
-// import FailedEntries from './components/FailedEntries';
+
 
 function App() {
   return (
@@ -69,11 +71,21 @@ function App() {
           
           <Route path="/reports/failed-entries" element={
             <ProtectedRoute requiredRole={ROLES.ADMIN}>
-              {/* <FailedEntries /> */}
-              <div className="p-8 text-center">
-                <h2 className="text-2xl font-bold mb-4">Reporte de Intentos Fallidos</h2>
-                <p className="text-gray-600">Esta sección está en desarrollo.</p>
-              </div>
+              <ParkingReportGenerator />
+            </ProtectedRoute>
+          } />
+
+          // Add a new route for live parking monitoring
+          <Route path="/live-parking" element={
+            <ProtectedRoute requiredPermission={PERMISSIONS.CHECK_VEHICLES}>
+              <LiveParkingMonitor />
+            </ProtectedRoute>
+          } />
+
+          // Add a general reports route (optional if you want a dedicated reports page)
+          <Route path="/reports" element={
+            <ProtectedRoute requiredRole={ROLES.ADMIN}>
+              <ParkingReportGenerator />
             </ProtectedRoute>
           } />
 

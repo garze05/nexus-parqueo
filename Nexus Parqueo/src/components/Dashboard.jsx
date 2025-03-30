@@ -139,6 +139,27 @@ const Dashboard = () => {
                   <span className="text-2xl mb-2">🚗</span>
                   <span className="font-medium text-center">Registrar Vehiculos</span>
                 </button>
+                <button 
+                  onClick={() => navigate('/live-parking')}
+                  className="p-4 bg-teal-100 rounded-lg hover:bg-teal-200 transition-colors flex flex-col items-center justify-center h-32"
+                >
+                  <span className="text-2xl mb-2">📊</span>
+                  <span className="font-medium text-center">Monitor en Vivo</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/reports')}
+                  className="p-4 bg-orange-100 rounded-lg hover:bg-orange-200 transition-colors flex flex-col items-center justify-center h-32"
+                >
+                  <span className="text-2xl mb-2">📝</span>
+                  <span className="font-medium text-center">Reportes de Parqueo</span>
+                </button>
+                <button 
+                  onClick={() => navigate('/live-parking')}
+                  className="p-4 bg-teal-100 rounded-lg hover:bg-teal-200 transition-colors flex flex-col items-center justify-center h-32"
+                >
+                  <span className="text-2xl mb-2">📊</span>
+                  <span className="font-medium text-center">Monitor en Vivo</span>
+                </button>
               </>
             )}
             

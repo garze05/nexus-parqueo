@@ -15,8 +15,10 @@
   "license": "ISC",
   "description": "",
   "dependencies": {
+    "@angular/core": "^19.2.2",
     "@radix-ui/react-slot": "^1.1.2",
     "@shadcn/ui": "^0.0.4",
+    "@xyflow/react": "^12.4.4",
     "bcrypt": "^5.1.1",
     "chai": "^5.2.0",
     "class-variance-authority": "^0.7.1",
@@ -26,6 +28,8 @@
     "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "jsonwebtoken": "^9.0.2",
+    "jspdf": "^3.0.1",
+    "jspdf-autotable": "^5.0.2",
     "lucide-react": "^0.475.0",
     "mocha": "^11.1.0",
     "msnodesqlv8": "^4.5.0",
@@ -37,7 +41,8 @@
     "sinon": "^19.0.2",
     "supertest": "^7.0.0",
     "tailwind-merge": "^3.0.1",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5.8.2"
   },
   "devDependencies": {
     "@vitejs/plugin-react": "^4.2.1",
