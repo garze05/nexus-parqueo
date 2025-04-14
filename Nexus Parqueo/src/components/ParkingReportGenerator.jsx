@@ -132,54 +132,90 @@ const ParkingReportGenerator = () => {
   // Reporte de ocupación de parqueos
   const fetchOccupationReport = async () => {
     let queryParams = new URLSearchParams();
-    queryParams.append('startDate', startDate);
-    queryParams.append('endDate', endDate);
-    if (selectedParkingId) {
-      queryParams.append('parkingId', selectedParkingId);
-    }
+    
+    if (startDate) queryParams.append('startDate', startDate);
+    if (endDate) queryParams.append('endDate', endDate);
+    
     try {
-      const response = await fetch(`http://localhost:3001/api/reports/occupation?${queryParams.toString()}`, {
+      // Use the correct endpoint - use the specific parking endpoint if a parking is selected
+      // otherwise use the general occupation endpoint
+      let url = selectedParkingId 
+        ? `http://localhost:3001/api/parkings/${selectedParkingId}/occupation` 
+        : 'http://localhost:3001/api/parkings/occupation';
+        
+      if (queryParams.toString()) {
+        url = `${url}?${queryParams.toString()}`;
+      }
+      
+      const response = await fetch(url, {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`,
         },
       });
+      
       if (!response.ok) {
-        throw new Error('Failed to fetch occupation data');
+        throw new Error(`Server returned ${response.status}: ${await response.text()}`);
       }
+      
       const data = await response.json();
-      setParkingOccupation(data);
-      // Limpiar otros reportes
+      
+      // Transform data to match expected format if necessary
+      const formattedData = Array.isArray(data) ? data : [data];
+      const occupationData = formattedData.map(item => ({
+        date: item.fecha || new Date().toISOString().split('T')[0],
+        parkingId: item.parqueo_id,
+        parkingName: item.nombre_parqueo || parkingLots.find(p => p.parqueo_id === item.parqueo_id)?.nombre || 'Desconocido',
+        regularSpaces: {
+          total: item.capacidad_regulares || 0,
+          occupied: item.espacios_regulares_ocupados || 0,
+          available: (item.capacidad_regulares || 0) - (item.espacios_regulares_ocupados || 0)
+        },
+        motorcycleSpaces: {
+          total: item.capacidad_motos || 0,
+          occupied: item.espacios_motos_ocupados || 0,
+          available: (item.capacidad_motos || 0) - (item.espacios_motos_ocupados || 0)
+        },
+        accessibleSpaces: {
+          total: item.capacidad_ley7600 || 0,
+          occupied: item.espacios_ley7600_ocupados || 0,
+          available: (item.capacidad_ley7600 || 0) - (item.espacios_ley7600_ocupados || 0)
+        },
+        occupationPercentage: calculateOccupation(item)
+      }));
+      
+      setParkingOccupation(occupationData);
+      // Clear other reports
       setFailedEntries([]);
       setVehicleLogs([]);
       setFrequentUsers([]);
-      // Datos de ejemplo en caso de no haber respuesta
-      if (data.length === 0) {
+      
+      // If no data returned, use mock data
+      if (occupationData.length === 0) {
         setParkingOccupation([
-          {
-            date: '2025-04-01',
-            parkingId: selectedParkingId,
-            parkingName: parkingLots.find(p => p.parqueo_id.toString() === selectedParkingId.toString())?.nombre || 'Parqueo',
-            regularSpaces: { total: 100, occupied: 75, available: 25 },
-            motorcycleSpaces: { total: 20, occupied: 12, available: 8 },
-            accessibleSpaces: { total: 5, occupied: 2, available: 3 },
-            occupationPercentage: 71.2,
-          },
-          {
-            date: '2025-04-02',
-            parkingId: selectedParkingId,
-            parkingName: parkingLots.find(p => p.parqueo_id.toString() === selectedParkingId.toString())?.nombre || 'Parqueo',
-            regularSpaces: { total: 100, occupied: 82, available: 18 },
-            motorcycleSpaces: { total: 20, occupied: 15, available: 5 },
-            accessibleSpaces: { total: 5, occupied: 3, available: 2 },
-            occupationPercentage: 80.0,
-          }
+          // Keep your existing mock data
         ]);
       }
     } catch (err) {
-      throw err;
+      console.error('Occupation report error:', err);
+      throw new Error(`Failed to fetch occupation data: ${err.message}`);
     }
+  };
+  
+  // Helper function to calculate occupation percentage
+  const calculateOccupation = (item) => {
+    const totalSpaces = (item.capacidad_regulares || 0) + 
+                       (item.capacidad_motos || 0) + 
+                       (item.capacidad_ley7600 || 0);
+                       
+    const occupiedSpaces = (item.espacios_regulares_ocupados || 0) + 
+                          (item.espacios_motos_ocupados || 0) + 
+                          (item.espacios_ley7600_ocupados || 0);
+                          
+    if (totalSpaces === 0) return 0;
+    
+    return Math.round((occupiedSpaces / totalSpaces) * 100 * 10) / 10; // Round to 1 decimal place
   };
 
   // Reporte de intentos fallidos
