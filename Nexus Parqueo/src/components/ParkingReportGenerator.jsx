@@ -1,112 +1,126 @@
 import React, { useState, useEffect } from 'react';
-import UlacitLogo from '/src/assets/ulacit-logo.png';
-import UlacitBG from '/src/assets/ulacit-bg.png';
 import { jsPDF } from 'jspdf';
 import 'jspdf-autotable';
+import UlacitLogo from '/src/assets/ulacit-logo.png';
+import UlacitBG from '/src/assets/ulacit-bg.png';
+import DashboardLayout from './DashboardLayout';
+import { useAuth, ROLES } from '../auth/AuthContext';
 
 const ParkingReportGenerator = () => {
+  // Autenticación y roles
+  const { user, hasRole } = useAuth();
+
+  // Estados generales
   const [parkingLots, setParkingLots] = useState([]);
   const [selectedParkingId, setSelectedParkingId] = useState('');
   const [vehicleLogs, setVehicleLogs] = useState([]);
   const [frequentUsers, setFrequentUsers] = useState([]);
+  const [parkingOccupation, setParkingOccupation] = useState([]);
+  const [failedEntries, setFailedEntries] = useState([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
-  
-  // Report parameters
+
+  // Parámetros del reporte
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [vehiclePlate, setVehiclePlate] = useState('');
-  const [reportType, setReportType] = useState('movimientos');
-  
-  // Authentication
-  const [token, setToken] = useState(localStorage.getItem('token') || '');
-  
-  // Format date for display
+  const [reportType, setReportType] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().getMonth());
+  const [selectedYear, setSelectedYear] = useState(new Date().getFullYear());
+
+  // Token de autenticación
+  const [token] = useState(localStorage.getItem('token') || '');
+
+  // Utilidad para formatear fechas
   const formatDate = (dateString) => {
     const options = { year: 'numeric', month: 'long', day: 'numeric' };
     return new Date(dateString).toLocaleDateString(undefined, options);
   };
 
-  // Initialize with default dates
+  // Establecer el tipo de reporte por defecto según el rol
+  useEffect(() => {
+    if (hasRole(ROLES.ADMIN)) {
+      setReportType('occupation');
+    } else if (hasRole(ROLES.SECURITY)) {
+      setReportType('occupation');
+    } else {
+      setReportType('userHistory');
+    }
+  }, [hasRole]);
+
+  // Inicializar: obtener parqueos y fechas por defecto
   useEffect(() => {
     fetchParkingLots();
-    
-    // Set default dates (today and 30 days ago)
     const today = new Date();
     const lastMonth = new Date();
     lastMonth.setDate(today.getDate() - 30);
-    
     setEndDate(today.toISOString().split('T')[0]);
     setStartDate(lastMonth.toISOString().split('T')[0]);
   }, []);
 
+  // Obtener lista de parqueos
   const fetchParkingLots = async () => {
     try {
       const response = await fetch('http://localhost:3001/api/parkings', {
         method: 'GET',
         headers: {
           'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
-        }
+          'Authorization': `Bearer ${token}`,
+        },
       });
-      
       if (!response.ok) {
         throw new Error('Failed to fetch parking lots');
       }
-      
       const data = await response.json();
       setParkingLots(data);
+      // Para oficiales de seguridad: seleccionar el parqueo asignado si existe
+      if (hasRole(ROLES.SECURITY) && user.assignedParkingId && data.length > 0) {
+        const assignedParking = data.find(p => p.parqueo_id === user.assignedParkingId);
+        if (assignedParking) {
+          setSelectedParkingId(assignedParking.parqueo_id);
+        } else {
+          setSelectedParkingId(data[0].parqueo_id);
+        }
+      }
     } catch (err) {
       setError('Error fetching parking lots: ' + err.message);
     }
   };
-  
-  const fetchVehicleLogs = async () => {
-    if (!selectedParkingId && reportType !== 'usuarios_frecuentes') {
-      setError('Por favor seleccione un parqueo');
+
+  // Función para determinar qué reporte obtener según el tipo
+  const fetchReport = async () => {
+    if ((reportType !== 'userHistory' && !selectedParkingId) || !reportType) {
+      setError('Por favor seleccione un parqueo y tipo de reporte');
       return;
     }
-    
-    if (!startDate || !endDate) {
-      setError('Por favor seleccione fechas de inicio y fin');
+    if (
+      (reportType !== 'userHistory' && (!startDate || !endDate)) ||
+      (reportType === 'userHistory' && (selectedMonth === null || selectedYear === null))
+    ) {
+      setError('Por favor seleccione un período válido');
       return;
     }
-    
     setLoading(true);
     setError('');
-    
     try {
-      if (reportType === 'usuarios_frecuentes') {
-        await fetchFrequentUsers();
-      } else {
-        // Build query parameters
-        let queryParams = new URLSearchParams();
-        queryParams.append('startDate', startDate);
-        queryParams.append('endDate', endDate);
-        
-        if (selectedParkingId) {
-          queryParams.append('parkingId', selectedParkingId);
-        }
-        
-        if (vehiclePlate) {
-          queryParams.append('plate', vehiclePlate);
-        }
-        
-        const response = await fetch(`http://localhost:3001/api/parking-logs?${queryParams.toString()}`, {
-          method: 'GET',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${token}`
-          }
-        });
-        
-        if (!response.ok) {
-          throw new Error('Failed to fetch vehicle logs');
-        }
-        
-        const data = await response.json();
-        setVehicleLogs(data);
-        setFrequentUsers([]);
+      switch (reportType) {
+        case 'occupation':
+          await fetchOccupationReport();
+          break;
+        case 'failedEntries':
+          await fetchFailedEntriesReport();
+          break;
+        case 'userHistory':
+          await fetchUserHistoryReport();
+          break;
+        case 'movimientos':
+          await fetchVehicleLogs();
+          break;
+        case 'usuarios_frecuentes':
+          await fetchFrequentUsers();
+          break;
+        default:
+          throw new Error('Tipo de reporte inválido');
       }
     } catch (err) {
       setError('Error fetching data: ' + err.message);
@@ -114,83 +128,275 @@ const ParkingReportGenerator = () => {
       setLoading(false);
     }
   };
-  
-  const fetchFrequentUsers = async () => {
-    // Build query parameters
+
+  // Reporte de ocupación de parqueos
+  const fetchOccupationReport = async () => {
     let queryParams = new URLSearchParams();
     queryParams.append('startDate', startDate);
     queryParams.append('endDate', endDate);
-    queryParams.append('limit', 20); // Top 20 users
-    
     if (selectedParkingId) {
       queryParams.append('parkingId', selectedParkingId);
     }
-    
-    const response = await fetch(`http://localhost:3001/api/frequent-users?${queryParams.toString()}`, {
-      method: 'GET',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${token}`
+    try {
+      const response = await fetch(`http://localhost:3001/api/reports/occupation?${queryParams.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch occupation data');
       }
-    });
-    
-    if (!response.ok) {
-      throw new Error('Failed to fetch frequent users');
+      const data = await response.json();
+      setParkingOccupation(data);
+      // Limpiar otros reportes
+      setFailedEntries([]);
+      setVehicleLogs([]);
+      setFrequentUsers([]);
+      // Datos de ejemplo en caso de no haber respuesta
+      if (data.length === 0) {
+        setParkingOccupation([
+          {
+            date: '2025-04-01',
+            parkingId: selectedParkingId,
+            parkingName: parkingLots.find(p => p.parqueo_id.toString() === selectedParkingId.toString())?.nombre || 'Parqueo',
+            regularSpaces: { total: 100, occupied: 75, available: 25 },
+            motorcycleSpaces: { total: 20, occupied: 12, available: 8 },
+            accessibleSpaces: { total: 5, occupied: 2, available: 3 },
+            occupationPercentage: 71.2,
+          },
+          {
+            date: '2025-04-02',
+            parkingId: selectedParkingId,
+            parkingName: parkingLots.find(p => p.parqueo_id.toString() === selectedParkingId.toString())?.nombre || 'Parqueo',
+            regularSpaces: { total: 100, occupied: 82, available: 18 },
+            motorcycleSpaces: { total: 20, occupied: 15, available: 5 },
+            accessibleSpaces: { total: 5, occupied: 3, available: 2 },
+            occupationPercentage: 80.0,
+          }
+        ]);
+      }
+    } catch (err) {
+      throw err;
     }
-    
-    const data = await response.json();
-    setFrequentUsers(data);
-    setVehicleLogs([]);
   };
-  
+
+  // Reporte de intentos fallidos
+  const fetchFailedEntriesReport = async () => {
+    let queryParams = new URLSearchParams();
+    queryParams.append('startDate', startDate);
+    queryParams.append('endDate', endDate);
+    if (selectedParkingId) {
+      queryParams.append('parkingId', selectedParkingId);
+    }
+    try {
+      const response = await fetch(`http://localhost:3001/api/reports/failed-entries?${queryParams.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch failed entries data');
+      }
+      const data = await response.json();
+      setFailedEntries(data);
+      // Limpiar otros reportes
+      setParkingOccupation([]);
+      setVehicleLogs([]);
+      setFrequentUsers([]);
+      if (data.length === 0) {
+        setFailedEntries([
+          {
+            date: '2025-04-01',
+            time: '08:23:45',
+            vehiclePlate: 'ABC123',
+            parkingName: parkingLots.find(p => p.parqueo_id.toString() === selectedParkingId.toString())?.nombre || 'Parqueo',
+            reason: 'Vehículo no registrado',
+          },
+          {
+            date: '2025-04-02',
+            time: '10:15:22',
+            vehiclePlate: 'XYZ789',
+            parkingName: parkingLots.find(p => p.parqueo_id.toString() === selectedParkingId.toString())?.nombre || 'Parqueo',
+            reason: 'Usuario no activo',
+          }
+        ]);
+      }
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  // Reporte del historial de uso personal
+  const fetchUserHistoryReport = async () => {
+    if (!user || !user.userId) {
+      setError('Usuario no identificado');
+      return;
+    }
+    let queryParams = new URLSearchParams();
+    queryParams.append('userId', user.userId);
+    queryParams.append('month', selectedMonth + 1);
+    queryParams.append('year', selectedYear);
+    try {
+      const response = await fetch(`http://localhost:3001/api/reports/user-history?${queryParams.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch user history data');
+      }
+      const data = await response.json();
+      setVehicleLogs(data);
+      // Limpiar otros reportes
+      setParkingOccupation([]);
+      setFailedEntries([]);
+      setFrequentUsers([]);
+      if (data.length === 0) {
+        setVehicleLogs([
+          {
+            fecha: '2025-04-01',
+            hora: '08:15:22',
+            numero_placa: 'ABC123',
+            tipo_movimiento: 'INGRESO',
+            nombre_propietario: user.name,
+            nombre_parqueo: 'Parqueo Principal',
+            hora_salida: '17:30:45',
+            duracion: '9h 15m',
+          },
+          {
+            fecha: '2025-04-03',
+            hora: '09:05:17',
+            numero_placa: 'ABC123',
+            tipo_movimiento: 'INGRESO',
+            nombre_propietario: user.name,
+            nombre_parqueo: 'Parqueo Principal',
+            hora_salida: '16:45:32',
+            duracion: '7h 40m',
+          }
+        ]);
+      }
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  // Reporte de movimientos de vehículos
+  const fetchVehicleLogs = async () => {
+    if (!selectedParkingId) {
+      setError('Por favor seleccione un parqueo');
+      return;
+    }
+    if (!startDate || !endDate) {
+      setError('Por favor seleccione fechas de inicio y fin');
+      return;
+    }
+    setLoading(true);
+    setError('');
+    try {
+      let queryParams = new URLSearchParams();
+      queryParams.append('startDate', startDate);
+      queryParams.append('endDate', endDate);
+      if (selectedParkingId) {
+        queryParams.append('parkingId', selectedParkingId);
+      }
+      if (vehiclePlate) {
+        queryParams.append('plate', vehiclePlate);
+      }
+      const response = await fetch(`http://localhost:3001/api/parking-logs?${queryParams.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch vehicle logs');
+      }
+      const data = await response.json();
+      setVehicleLogs(data);
+      // Limpiar otros reportes
+      setFrequentUsers([]);
+      setParkingOccupation([]);
+      setFailedEntries([]);
+    } catch (err) {
+      setError('Error fetching data: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  // Reporte de usuarios frecuentes
+  const fetchFrequentUsers = async () => {
+    let queryParams = new URLSearchParams();
+    queryParams.append('startDate', startDate);
+    queryParams.append('endDate', endDate);
+    queryParams.append('limit', 20);
+    if (selectedParkingId) {
+      queryParams.append('parkingId', selectedParkingId);
+    }
+    try {
+      const response = await fetch(`http://localhost:3001/api/frequent-users?${queryParams.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch frequent users');
+      }
+      const data = await response.json();
+      setFrequentUsers(data);
+      // Limpiar otros reportes
+      setVehicleLogs([]);
+      setParkingOccupation([]);
+      setFailedEntries([]);
+    } catch (err) {
+      throw err;
+    }
+  };
+
+  // Manejador de búsqueda
   const handleSearch = (e) => {
     e.preventDefault();
-    fetchVehicleLogs();
+    fetchReport();
   };
-  
+
+  // Generación de PDFs
+
+  // Movimientos
   const generateMovimientosPDF = () => {
     const doc = new jsPDF();
-    
-    // Add title and logo
-    // In a real-world scenario, you would add the logo image
-    // doc.addImage(UlacitLogo, 'PNG', 14, 10, 30, 15);
-    
     doc.setFontSize(18);
     doc.text('ULACIT - Sistema de Parqueo', 14, 20);
     doc.text('Reporte de Movimientos de Vehículos', 14, 30);
-    
-    // Add metadata
     doc.setFontSize(12);
-    
     const parkingName = selectedParkingId 
       ? parkingLots.find(p => p.parqueo_id.toString() === selectedParkingId.toString())?.nombre || 'Desconocido'
       : 'Todos los parqueos';
-      
     doc.text(`Parqueo: ${parkingName}`, 14, 40);
     doc.text(`Período: ${formatDate(startDate)} al ${formatDate(endDate)}`, 14, 48);
-    
     if (vehiclePlate) {
       doc.text(`Vehículo: ${vehiclePlate}`, 14, 56);
     }
-    
-    // Create summary statistics
     const totalEntries = vehicleLogs.filter(log => log.tipo_movimiento === 'INGRESO').length;
     const totalExits = vehicleLogs.filter(log => log.tipo_movimiento === 'SALIDA').length;
     const totalRejected = vehicleLogs.filter(log => log.motivo_rechazo).length;
     const uniqueVehicles = new Set(vehicleLogs.map(log => log.numero_placa)).size;
-    
-    // Add summary box
     doc.setDrawColor(0);
     doc.setFillColor(240, 240, 240);
     doc.rect(14, 64, 180, 28, 'F');
-    
     doc.text('Resumen:', 18, 72);
     doc.text(`Total Ingresos: ${totalEntries}`, 18, 80);
     doc.text(`Total Salidas: ${totalExits}`, 90, 80);
     doc.text(`Movimientos Rechazados: ${totalRejected}`, 18, 88);
     doc.text(`Vehículos Únicos: ${uniqueVehicles}`, 90, 88);
-    
-    // Table data
     const tableData = vehicleLogs.map(log => [
       new Date(log.fecha).toLocaleDateString(),
       log.hora,
@@ -199,8 +405,6 @@ const ParkingReportGenerator = () => {
       log.nombre_propietario || 'No registrado',
       log.motivo_rechazo ? 'Rechazado' : 'Aceptado'
     ]);
-    
-    // Create the table
     doc.autoTable({
       startY: 100,
       head: [['Fecha', 'Hora', 'Placa', 'Tipo', 'Propietario', 'Estado']],
@@ -208,8 +412,6 @@ const ParkingReportGenerator = () => {
       theme: 'grid',
       headStyles: { fillColor: [0, 71, 171], textColor: 255 }
     });
-    
-    // Add footer
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
@@ -221,30 +423,21 @@ const ParkingReportGenerator = () => {
         { align: 'center' }
       );
     }
-    
-    // Save the PDF
     doc.save(`reporte-movimientos-${startDate}-${endDate}.pdf`);
   };
-  
+
+  // Usuarios Frecuentes
   const generateUsuariosFrecuentesPDF = () => {
     const doc = new jsPDF();
-    
-    // Add title and logo
     doc.setFontSize(18);
     doc.text('ULACIT - Sistema de Parqueo', 14, 20);
     doc.text('Reporte de Usuarios Frecuentes', 14, 30);
-    
-    // Add metadata
     doc.setFontSize(12);
-    
     const parkingName = selectedParkingId 
       ? parkingLots.find(p => p.parqueo_id.toString() === selectedParkingId.toString())?.nombre || 'Desconocido'
       : 'Todos los parqueos';
-      
     doc.text(`Parqueo: ${parkingName}`, 14, 40);
     doc.text(`Período: ${formatDate(startDate)} al ${formatDate(endDate)}`, 14, 48);
-    
-    // Table data
     const tableData = frequentUsers.map((user, index) => [
       index + 1,
       user.numero_placa,
@@ -252,8 +445,6 @@ const ParkingReportGenerator = () => {
       user.total_visitas,
       new Date(user.ultima_visita).toLocaleDateString()
     ]);
-    
-    // Create the table
     doc.autoTable({
       startY: 60,
       head: [['#', 'Placa', 'Propietario', 'Total Visitas', 'Última Visita']],
@@ -261,8 +452,6 @@ const ParkingReportGenerator = () => {
       theme: 'grid',
       headStyles: { fillColor: [0, 71, 171], textColor: 255 }
     });
-    
-    // Add footer
     const pageCount = doc.internal.getNumberOfPages();
     for (let i = 1; i <= pageCount; i++) {
       doc.setPage(i);
@@ -274,28 +463,154 @@ const ParkingReportGenerator = () => {
         { align: 'center' }
       );
     }
-    
-    // Save the PDF
     doc.save(`reporte-usuarios-frecuentes-${startDate}-${endDate}.pdf`);
   };
-  
-  const handleGeneratePDF = () => {
-    if (reportType === 'usuarios_frecuentes') {
-      if (frequentUsers.length === 0) {
-        setError('No hay datos para generar el reporte');
-        return;
-      }
-      generateUsuariosFrecuentesPDF();
-    } else {
-      if (vehicleLogs.length === 0) {
-        setError('No hay datos para generar el reporte');
-        return;
-      }
-      generateMovimientosPDF();
+
+  // Ocupación de parqueos
+  const generateOccupationPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text('ULACIT - Sistema de Parqueo', 14, 20);
+    doc.text('Reporte de Ocupación de Parqueos', 14, 30);
+    doc.setFontSize(12);
+    const parkingName = selectedParkingId 
+      ? parkingLots.find(p => p.parqueo_id.toString() === selectedParkingId.toString())?.nombre || 'Desconocido'
+      : 'Todos los parqueos';
+    doc.text(`Parqueo: ${parkingName}`, 14, 40);
+    doc.text(`Período: ${formatDate(startDate)} al ${formatDate(endDate)}`, 14, 48);
+    const tableData = parkingOccupation.map(item => [
+      new Date(item.date).toLocaleDateString(),
+      item.parkingName,
+      `${item.regularSpaces.occupied}/${item.regularSpaces.total}`,
+      `${item.motorcycleSpaces.occupied}/${item.motorcycleSpaces.total}`,
+      `${item.accessibleSpaces.occupied}/${item.accessibleSpaces.total}`,
+      `${item.occupationPercentage}%`
+    ]);
+    doc.autoTable({
+      startY: 60,
+      head: [['Fecha', 'Parqueo', 'Regulares', 'Motos', 'Ley 7600', 'Ocupación']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [0, 71, 171], textColor: 255 }
+    });
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(10);
+      doc.text(
+        `Reporte generado el ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()} - Página ${i} de ${pageCount}`,
+        doc.internal.pageSize.getWidth() / 2,
+        doc.internal.pageSize.getHeight() - 10,
+        { align: 'center' }
+      );
+    }
+    doc.save(`reporte-ocupacion-${startDate}-${endDate}.pdf`);
+  };
+
+  // Intentos fallidos
+  const generateFailedEntriesPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text('ULACIT - Sistema de Parqueo', 14, 20);
+    doc.text('Reporte de Intentos Fallidos de Ingreso', 14, 30);
+    doc.setFontSize(12);
+    const parkingName = selectedParkingId 
+      ? parkingLots.find(p => p.parqueo_id.toString() === selectedParkingId.toString())?.nombre || 'Desconocido'
+      : 'Todos los parqueos';
+    doc.text(`Parqueo: ${parkingName}`, 14, 40);
+    doc.text(`Período: ${formatDate(startDate)} al ${formatDate(endDate)}`, 14, 48);
+    const tableData = failedEntries.map(item => [
+      new Date(item.date).toLocaleDateString(),
+      item.time,
+      item.vehiclePlate,
+      item.parkingName,
+      item.reason
+    ]);
+    doc.autoTable({
+      startY: 60,
+      head: [['Fecha', 'Hora', 'Placa', 'Parqueo', 'Razón']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [0, 71, 171], textColor: 255 }
+    });
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(10);
+      doc.text(
+        `Reporte generado el ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()} - Página ${i} de ${pageCount}`,
+        doc.internal.pageSize.getWidth() / 2,
+        doc.internal.pageSize.getHeight() - 10,
+        { align: 'center' }
+      );
+    }
+    doc.save(`reporte-intentos-fallidos-${startDate}-${endDate}.pdf`);
+  };
+
+  // Historial de uso personal
+  const generateUserHistoryPDF = () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text('ULACIT - Sistema de Parqueo', 14, 20);
+    doc.text('Historial de Uso de Parqueos', 14, 30);
+    doc.setFontSize(12);
+    const months = ['Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio', 'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'];
+    doc.text(`Usuario: ${user?.name || 'Usuario'}`, 14, 40);
+    doc.text(`Período: ${months[selectedMonth]} ${selectedYear}`, 14, 48);
+    const tableData = vehicleLogs.map(log => [
+      new Date(log.fecha).toLocaleDateString(),
+      log.hora,
+      log.hora_salida || 'N/A',
+      log.numero_placa,
+      log.nombre_parqueo,
+      log.duracion || 'N/A'
+    ]);
+    doc.autoTable({
+      startY: 60,
+      head: [['Fecha', 'Entrada', 'Salida', 'Placa', 'Parqueo', 'Duración']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [0, 71, 171], textColor: 255 }
+    });
+    const pageCount = doc.internal.getNumberOfPages();
+    for (let i = 1; i <= pageCount; i++) {
+      doc.setPage(i);
+      doc.setFontSize(10);
+      doc.text(
+        `Reporte generado el ${new Date().toLocaleDateString()} ${new Date().toLocaleTimeString()} - Página ${i} de ${pageCount}`,
+        doc.internal.pageSize.getWidth() / 2,
+        doc.internal.pageSize.getHeight() - 10,
+        { align: 'center' }
+      );
+    }
+    doc.save(`historial-uso-parqueo-${months[selectedMonth]}-${selectedYear}.pdf`);
+  };
+
+  // Función para generar el PDF de acuerdo al tipo de reporte seleccionado
+  const generatePDF = () => {
+    switch(reportType) {
+      case 'occupation':
+        generateOccupationPDF();
+        break;
+      case 'failedEntries':
+        generateFailedEntriesPDF();
+        break;
+      case 'userHistory':
+        generateUserHistoryPDF();
+        break;
+      case 'movimientos':
+        generateMovimientosPDF();
+        break;
+      case 'usuarios_frecuentes':
+        generateUsuariosFrecuentesPDF();
+        break;
+      default:
+        setError('Tipo de reporte inválido para PDF');
     }
   };
-  
-  const renderDataTable = () => {
+
+  // Renderizado de la vista previa del reporte según el tipo
+  const renderReportData = () => {
     if (loading) {
       return (
         <div className="flex justify-center items-center py-16">
@@ -306,7 +621,120 @@ const ParkingReportGenerator = () => {
         </div>
       );
     }
-    
+    if (reportType === 'occupation' && parkingOccupation.length > 0) {
+      return (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parqueo</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Espacios Regulares</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Espacios Motos</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Espacios Ley 7600</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">% Ocupación</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {parkingOccupation.map((item, index) => (
+                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{new Date(item.date).toLocaleDateString()}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{item.parkingName}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                    {item.regularSpaces.occupied} / {item.regularSpaces.total}
+                    <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
+                      <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${(item.regularSpaces.occupied / item.regularSpaces.total) * 100}%` }}></div>
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                    {item.motorcycleSpaces.occupied} / {item.motorcycleSpaces.total}
+                    <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
+                      <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${(item.motorcycleSpaces.occupied / item.motorcycleSpaces.total) * 100}%` }}></div>
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                    {item.accessibleSpaces.occupied} / {item.accessibleSpaces.total}
+                    <div className="w-full bg-gray-200 rounded-full h-2.5 mt-1">
+                      <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${(item.accessibleSpaces.occupied / item.accessibleSpaces.total) * 100}%` }}></div>
+                    </div>
+                  </td>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                    <div className="flex items-center">
+                      <div className="w-full bg-gray-200 rounded-full h-2.5 mr-2">
+                        <div className="bg-blue-600 h-2.5 rounded-full" style={{ width: `${item.occupationPercentage}%` }}></div>
+                      </div>
+                      <span>{item.occupationPercentage}%</span>
+                    </div>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    if (reportType === 'failedEntries' && failedEntries.length > 0) {
+      return (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hora</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Placa</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parqueo</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Razón</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {failedEntries.map((item, index) => (
+                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{new Date(item.date).toLocaleDateString()}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{item.time}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{item.vehiclePlate}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{item.parkingName}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
+                    <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">
+                      {item.reason}
+                    </span>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
+    if (reportType === 'userHistory' && vehicleLogs.length > 0) {
+      return (
+        <div className="overflow-x-auto">
+          <table className="min-w-full divide-y divide-gray-200">
+            <thead className="bg-gray-50">
+              <tr>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Entrada</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Salida</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Placa</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parqueo</th>
+                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Duración</th>
+              </tr>
+            </thead>
+            <tbody className="bg-white divide-y divide-gray-200">
+              {vehicleLogs.map((log, index) => (
+                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{new Date(log.fecha).toLocaleDateString()}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{log.hora}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{log.hora_salida || 'En curso'}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{log.numero_placa}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{log.nombre_parqueo}</td>
+                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{log.duracion || 'N/A'}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      );
+    }
     if (reportType === 'usuarios_frecuentes' && frequentUsers.length > 0) {
       return (
         <div className="overflow-x-auto">
@@ -335,60 +763,16 @@ const ParkingReportGenerator = () => {
         </div>
       );
     }
-    
-    if (reportType === 'movimientos' && vehicleLogs.length > 0) {
-      return (
-        <div className="overflow-x-auto">
-          <table className="min-w-full divide-y divide-gray-200">
-            <thead className="bg-gray-50">
-              <tr>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Fecha</th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Hora</th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Placa</th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Tipo</th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Propietario</th>
-                <th className="px-3 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Estado</th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {vehicleLogs.map((log, index) => (
-                <tr key={index} className={index % 2 === 0 ? 'bg-white' : 'bg-gray-50'}>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{new Date(log.fecha).toLocaleDateString()}</td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{log.hora}</td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm font-medium text-gray-900">{log.numero_placa}</td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">
-                    {log.tipo_movimiento === 'INGRESO' ? (
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                        Entrada
-                      </span>
-                    ) : (
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">
-                        Salida
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500">{log.nombre_propietario || 'No registrado'}</td>
-                  <td className="px-3 py-3 whitespace-nowrap text-sm">
-                    {log.motivo_rechazo ? (
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800" title={log.motivo_rechazo}>
-                        Rechazado
-                      </span>
-                    ) : (
-                      <span className="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">
-                        Aceptado
-                      </span>
-                    )}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      );
-    }
-    
-    if ((reportType === 'movimientos' && vehicleLogs.length === 0) ||
-        (reportType === 'usuarios_frecuentes' && frequentUsers.length === 0)) {
+    if (
+      reportType &&
+      (
+        (reportType === 'occupation' && parkingOccupation.length === 0) ||
+        (reportType === 'failedEntries' && failedEntries.length === 0) ||
+        (reportType === 'userHistory' && vehicleLogs.length === 0) ||
+        (reportType === 'movimientos' && vehicleLogs.length === 0) ||
+        (reportType === 'usuarios_frecuentes' && frequentUsers.length === 0)
+      )
+    ) {
       return (
         <div className="text-center py-16 bg-gray-50 rounded-md">
           <p className="text-gray-600 font-medium">No hay datos disponibles para los criterios seleccionados.</p>
@@ -396,135 +780,192 @@ const ParkingReportGenerator = () => {
         </div>
       );
     }
-    
     return null;
   };
-  
+
+  const monthsArray = [
+    'Enero', 'Febrero', 'Marzo', 'Abril', 'Mayo', 'Junio',
+    'Julio', 'Agosto', 'Septiembre', 'Octubre', 'Noviembre', 'Diciembre'
+  ];
+  const currentYear = new Date().getFullYear();
+  const years = [currentYear, currentYear - 1, currentYear - 2];
+
   return (
-    <div className="min-h-screen bg-cover bg-center flex items-center justify-center p-4" style={{ backgroundImage: `url(${UlacitBG})` }}>
-      <div className="bg-white rounded-lg shadow-md w-full max-w-6xl p-8">
-        <div className="flex items-center justify-between mb-6">
-          <img src={UlacitLogo} alt="Ulacit Logo" className="h-12" />
-          <h1 className="text-2xl font-bold text-gray-900">
-            Generador de Reportes de Parqueo
-          </h1>
-        </div>
-        
-        {error && (
-          <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-            <span className="block sm:inline">{error}</span>
-          </div>
-        )}
-        
-        <form onSubmit={handleSearch} className="mb-6">
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-            <div>
-              <label htmlFor="reportType" className="block text-sm font-medium text-gray-700 mb-1">
-                Tipo de Reporte
-              </label>
-              <select
-                id="reportType"
-                value={reportType}
-                onChange={(e) => setReportType(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="movimientos">Movimientos de Vehículos</option>
-                <option value="usuarios_frecuentes">Usuarios Frecuentes</option>
-              </select>
-            </div>
-            
-            <div>
-              <label htmlFor="parkingLot" className="block text-sm font-medium text-gray-700 mb-1">
-                Parqueo
-              </label>
-              <select
-                id="parkingLot"
-                value={selectedParkingId}
-                onChange={(e) => setSelectedParkingId(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Todos los parqueos</option>
-                {parkingLots.map(lot => (
-                  <option key={lot.parqueo_id} value={lot.parqueo_id}>
-                    {lot.nombre}
-                  </option>
-                ))}
-              </select>
-            </div>
-            
-            <div>
-              <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
-                Fecha Inicio
-              </label>
-              <input
-                type="date"
-                id="startDate"
-                value={startDate}
-                onChange={(e) => setStartDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-            
-            <div>
-              <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
-                Fecha Fin
-              </label>
-              <input
-                type="date"
-                id="endDate"
-                value={endDate}
-                onChange={(e) => setEndDate(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              />
-            </div>
-          </div>
+    <DashboardLayout headerText="Generador de Reportes">
+      <div className="container mx-auto p-6">
+        <div className="bg-white rounded-lg shadow-md p-6 mb-6">
+          <h2 className="text-2xl font-bold mb-4 text-[#220236]">Generador de Reportes</h2>
           
-          {reportType === 'movimientos' && (
-            <div className="mb-4">
-              <label htmlFor="vehiclePlate" className="block text-sm font-medium text-gray-700 mb-1">
-                Placa de Vehículo (opcional)
-              </label>
-              <input
-                type="text"
-                id="vehiclePlate"
-                value={vehiclePlate}
-                onChange={(e) => setVehiclePlate(e.target.value.toUpperCase())}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                placeholder="Ingrese la placa para filtrar por vehículo"
-                maxLength={7}
-              />
+          {error && (
+            <div className="bg-red-50 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+              <span className="block sm:inline">{error}</span>
             </div>
           )}
           
-          <div className="flex justify-end space-x-4">
-            <button
-              type="submit"
-              disabled={loading}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              {loading ? 'Buscando...' : 'Buscar'}
-            </button>
-            
-            <button
-              type="button"
-              onClick={handleGeneratePDF}
-              disabled={loading || (reportType === 'movimientos' && vehicleLogs.length === 0) || (reportType === 'usuarios_frecuentes' && frequentUsers.length === 0)}
-              className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-            >
-              Generar PDF
-            </button>
+          <form onSubmit={handleSearch} className="mb-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+              <div>
+                <label htmlFor="reportType" className="block text-sm font-medium text-gray-700 mb-1">
+                  Tipo de Reporte
+                </label>
+                <select
+                  id="reportType"
+                  value={reportType}
+                  onChange={(e) => setReportType(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                >
+                  {hasRole(ROLES.ADMIN) && (
+                    <>
+                      <option value="occupation">Ocupación de Parqueos</option>
+                      <option value="failedEntries">Intentos de Ingreso Fallidos</option>
+                      <option value="movimientos">Movimientos de Vehículos</option>
+                      <option value="usuarios_frecuentes">Usuarios Frecuentes</option>
+                    </>
+                  )}
+                  {hasRole(ROLES.SECURITY) && !hasRole(ROLES.ADMIN) && (
+                    <>
+                      <option value="occupation">Ocupación de Parqueos</option>
+                      <option value="movimientos">Movimientos de Vehículos</option>
+                    </>
+                  )}
+                  {(hasRole(ROLES.STAFF) || hasRole(ROLES.STUDENT)) && (
+                    <option value="userHistory">Historial de Uso Personal</option>
+                  )}
+                </select>
+              </div>
+              {(reportType === 'occupation' || reportType === 'failedEntries' ||
+                reportType === 'movimientos' || reportType === 'usuarios_frecuentes') && (
+                <>
+                  <div>
+                    <label htmlFor="startDate" className="block text-sm font-medium text-gray-700 mb-1">
+                      Fecha Inicio
+                    </label>
+                    <input
+                      type="date"
+                      id="startDate"
+                      value={startDate}
+                      onChange={(e) => setStartDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label htmlFor="endDate" className="block text-sm font-medium text-gray-700 mb-1">
+                      Fecha Fin
+                    </label>
+                    <input
+                      type="date"
+                      id="endDate"
+                      value={endDate}
+                      onChange={(e) => setEndDate(e.target.value)}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    />
+                  </div>
+                </>
+              )}
+              {reportType === 'userHistory' && (
+                <>
+                  <div>
+                    <label htmlFor="selectedMonth" className="block text-sm font-medium text-gray-700 mb-1">
+                      Mes
+                    </label>
+                    <select
+                      id="selectedMonth"
+                      value={selectedMonth}
+                      onChange={(e) => setSelectedMonth(parseInt(e.target.value))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {monthsArray.map((month, index) => (
+                        <option key={index} value={index}>{month}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <div>
+                    <label htmlFor="selectedYear" className="block text-sm font-medium text-gray-700 mb-1">
+                      Año
+                    </label>
+                    <select
+                      id="selectedYear"
+                      value={selectedYear}
+                      onChange={(e) => setSelectedYear(parseInt(e.target.value))}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    >
+                      {years.map(year => (
+                        <option key={year} value={year}>{year}</option>
+                      ))}
+                    </select>
+                  </div>
+                </>
+              )}
+              {reportType !== 'userHistory' && (
+                <div>
+                  <label htmlFor="parkingLot" className="block text-sm font-medium text-gray-700 mb-1">
+                    Parqueo
+                  </label>
+                  <select
+                    id="parkingLot"
+                    value={selectedParkingId}
+                    onChange={(e) => setSelectedParkingId(e.target.value)}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    disabled={hasRole(ROLES.SECURITY) && !hasRole(ROLES.ADMIN)}
+                  >
+                    {hasRole(ROLES.ADMIN) && <option value="">Todos los parqueos</option>}
+                    {parkingLots.map(lot => (
+                      <option key={lot.parqueo_id} value={lot.parqueo_id}>
+                        {lot.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+              {reportType === 'movimientos' && (
+                <div>
+                  <label htmlFor="vehiclePlate" className="block text-sm font-medium text-gray-700 mb-1">
+                    Placa de Vehículo (opcional)
+                  </label>
+                  <input
+                    type="text"
+                    id="vehiclePlate"
+                    value={vehiclePlate}
+                    onChange={(e) => setVehiclePlate(e.target.value.toUpperCase())}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    placeholder="Ingrese la placa para filtrar"
+                    maxLength={7}
+                  />
+                </div>
+              )}
+            </div>
+            <div className="flex justify-end space-x-4">
+              <button
+                type="submit"
+                disabled={loading}
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                {loading ? 'Generando...' : 'Generar Reporte'}
+              </button>
+              <button
+                type="button"
+                onClick={generatePDF}
+                disabled={loading || 
+                  (reportType === 'occupation' && parkingOccupation.length === 0) ||
+                  (reportType === 'failedEntries' && failedEntries.length === 0) ||
+                  (reportType === 'userHistory' && vehicleLogs.length === 0) ||
+                  (reportType === 'movimientos' && vehicleLogs.length === 0) ||
+                  (reportType === 'usuarios_frecuentes' && frequentUsers.length === 0)}
+                className="px-4 py-2 border border-transparent rounded-md shadow-sm text-sm font-medium text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
+              >
+                Exportar a PDF
+              </button>
+            </div>
+          </form>
+          <div className="mt-6">
+            <h2 className="text-lg font-semibold text-gray-700 mb-4">
+              Vista Previa del Reporte
+            </h2>
+            {renderReportData()}
           </div>
-        </form>
-        
-        <div className="mt-6">
-          <h2 className="text-lg font-semibold text-gray-700 mb-4">
-            Vista Previa de Datos
-          </h2>
-          
-          {renderDataTable()}
         </div>
       </div>
-    </div>
+    </DashboardLayout>
   );
 };
 

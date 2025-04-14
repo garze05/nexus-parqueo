@@ -1061,3 +1061,31 @@ const PORT = process.env.PORT || 3001;
 app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
+
+const fetchOccupationReport = async () => {
+    let queryParams = new URLSearchParams();
+    queryParams.append('startDate', startDate);
+    queryParams.append('endDate', endDate);
+    // Si el parqueo está seleccionado, se usa el endpoint para un parqueo específico
+    const endpoint = selectedParkingId
+      ? `http://localhost:3001/api/parkings/${selectedParkingId}/occupation`
+      : `http://localhost:3001/api/parkings/occupation`;
+    try {
+      const response = await fetch(`${endpoint}?${queryParams.toString()}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${token}`
+        }
+      });
+      if (!response.ok) {
+        throw new Error('Failed to fetch occupation data');
+      }
+      const data = await response.json();
+      setParkingOccupation(data);
+      // Limpiar otros reportes según sea el caso…
+    } catch (err) {
+      setError('Error fetching data: ' + err.message);
+    }
+  };
+  
