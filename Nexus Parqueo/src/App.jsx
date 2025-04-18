@@ -19,7 +19,7 @@ import LiveParkingMonitor from './components/LiveParkingMonitor';
 import ParkingReportGenerator from './components/ParkingReportGenerator';
 
 // import UserManagement from './components/UserManagement';
-// import History from './components/History';
+import History from './components/History';
 
 
 function App() {
@@ -187,14 +187,10 @@ function App() {
           } />
           
           <Route path="/history" element={
-            <ProtectedRoute requiredPermission={PERMISSIONS.VIEW_DASHBOARD}>
-              {/* <History /> */}
-              <div className="p-8 text-center">
-                <h2 className="text-2xl font-bold mb-4">Historial de Uso</h2>
-                <p className="text-gray-600">Esta sección está en desarrollo.</p>
-              </div>
-            </ProtectedRoute>
-          } />
+          <ProtectedRoute requiredRole={[ROLES.ADMIN, ROLES.STAFF, ROLES.STUDENT, ROLES.SECURITY]}>
+            <History />
+          </ProtectedRoute>
+}         />
           
           {/* Catch all route */}
           <Route path="*" element={<Navigate to="/dashboard" replace />} />

@@ -153,13 +153,6 @@ const Dashboard = () => {
                   <span className="text-2xl mb-2">📝</span>
                   <span className="font-medium text-center">Reportes de Parqueo</span>
                 </button>
-                <button 
-                  onClick={() => navigate('/live-parking')}
-                  className="p-4 bg-teal-100 rounded-lg hover:bg-teal-200 transition-colors flex flex-col items-center justify-center h-32"
-                >
-                  <span className="text-2xl mb-2">📊</span>
-                  <span className="font-medium text-center">Monitor en Vivo</span>
-                </button>
               </>
             )}
             
@@ -202,9 +195,9 @@ const Dashboard = () => {
             )}
           </div>
         </div>
-        
-        {/* Parking Occupation Section */}
-        {hasPermission(PERMISSIONS.VIEW_OCCUPATION) && (
+
+        {/* Only show parking occupation to admins and security */}
+        {hasPermission(PERMISSIONS.VIEW_OCCUPATION) && hasRole([ROLES.ADMIN, ROLES.SECURITY]) && (
           <div className="bg-white rounded-lg shadow-md p-6">
             <h3 className="text-xl font-semibold mb-4">Ocupación de Parqueos</h3>
             
@@ -275,6 +268,25 @@ const Dashboard = () => {
                 No hay datos de ocupación disponibles.
               </div>
             )}
+          </div>
+        )}
+
+        {/* Add a message for students and staff about checking history */}
+        {hasRole([ROLES.STAFF, ROLES.STUDENT]) && (
+          <div className="bg-white rounded-lg shadow-md p-6">
+            <h3 className="text-xl font-semibold mb-4">Historial de Uso</h3>
+            <p className="text-center text-gray-600 mb-4">
+              Puede consultar su historial de uso de parqueos utilizando la opción de "Historial de Uso" 
+              en las acciones rápidas.
+            </p>
+            <div className="flex justify-center">
+              <button 
+                onClick={() => navigate('/history')}
+                className="px-4 py-2 bg-[#220236] text-white rounded-md hover:bg-[#3a0c59] transition-colors"
+              >
+                Ver Historial
+              </button>
+            </div>
           </div>
         )}
       </div>
