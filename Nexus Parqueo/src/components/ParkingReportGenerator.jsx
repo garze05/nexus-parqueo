@@ -88,46 +88,62 @@ const ParkingReportGenerator = () => {
   };
 
   // Función para determinar qué reporte obtener según el tipo
-  const fetchReport = async () => {
-    if ((reportType !== 'userHistory' && !selectedParkingId) || !reportType) {
-      setError('Por favor seleccione un parqueo y tipo de reporte');
+// Update the fetchReport function to allow empty selectedParkingId
+const fetchReport = async () => {
+  if (!reportType) {
+    setError('Por favor seleccione un tipo de reporte');
+    return;
+  }
+  
+  // For non-user history reports that require date range
+  if (reportType !== 'userHistory') {
+    if (!startDate || !endDate) {
+      setError('Por favor seleccione fechas de inicio y fin');
       return;
     }
-    if (
-      (reportType !== 'userHistory' && (!startDate || !endDate)) ||
-      (reportType === 'userHistory' && (selectedMonth === null || selectedYear === null))
-    ) {
-      setError('Por favor seleccione un período válido');
+    
+    // Only require parking selection for security officers, not for admins
+    if (!selectedParkingId && hasRole(ROLES.SECURITY) && !hasRole(ROLES.ADMIN)) {
+      setError('Por favor seleccione un parqueo');
       return;
     }
-    setLoading(true);
-    setError('');
-    try {
-      switch (reportType) {
-        case 'occupation':
-          await fetchOccupationReport();
-          break;
-        case 'failedEntries':
-          await fetchFailedEntriesReport();
-          break;
-        case 'userHistory':
-          await fetchUserHistoryReport();
-          break;
-        case 'movimientos':
-          await fetchVehicleLogs();
-          break;
-        case 'usuarios_frecuentes':
-          await fetchFrequentUsers();
-          break;
-        default:
-          throw new Error('Tipo de reporte inválido');
-      }
-    } catch (err) {
-      setError('Error fetching data: ' + err.message);
-    } finally {
-      setLoading(false);
+  } else {
+    // For user history, we need month and year
+    if (selectedMonth === null || selectedYear === null) {
+      setError('Por favor seleccione un mes y año válidos');
+      return;
     }
-  };
+  }
+  
+  setLoading(true);
+  setError('');
+  
+  try {
+    switch (reportType) {
+      case 'occupation':
+        await fetchOccupationReport();
+        break;
+      case 'failedEntries':
+        await fetchFailedEntriesReport();
+        break;
+      case 'userHistory':
+        await fetchUserHistoryReport();
+        break;
+      case 'movimientos':
+        await fetchVehicleLogs();
+        break;
+      case 'usuarios_frecuentes':
+        await fetchFrequentUsers();
+        break;
+      default:
+        throw new Error('Tipo de reporte inválido');
+    }
+  } catch (err) {
+    setError('Error fetching data: ' + err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Reporte de ocupación de parqueos
   const fetchOccupationReport = async () => {
@@ -219,52 +235,76 @@ const ParkingReportGenerator = () => {
   };
 
   // Reporte de intentos fallidos
-  const fetchFailedEntriesReport = async () => {
-    let queryParams = new URLSearchParams();
-    queryParams.append('startDate', startDate);
-    queryParams.append('endDate', endDate);
-    if (selectedParkingId) {
-      queryParams.append('parkingId', selectedParkingId);
+
+const fetchFailedEntriesReport = async () => {
+  let queryParams = new URLSearchParams();
+  queryParams.append('startDate', startDate);
+  queryParams.append('endDate', endDate);
+  
+  // Only add parkingId to the query if a specific parking is selected
+  if (selectedParkingId) {
+    queryParams.append('parkingId', selectedParkingId);
+  }
+  
+  try {
+    // Use the correct endpoint from server.js
+    const url = 'http://localhost:3001/api/failed-entries';
+    
+    const response = await fetch(`${url}?${queryParams.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      }
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${await response.text()}`);
     }
-    try {
-      const response = await fetch(`http://localhost:3001/api/reports/failed-entries?${queryParams.toString()}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
+    
+    const data = await response.json();
+    
+    // Transform data to match expected format if necessary
+    const formattedData = Array.isArray(data) ? data : [data];
+    const failedEntriesData = formattedData.map(item => ({
+      date: item.fecha || new Date().toISOString().split('T')[0],
+      time: item.hora || '00:00:00',
+      vehiclePlate: item.numero_placa || 'Desconocido',
+      parkingName: item.nombre_parqueo || 'Desconocido',
+      reason: item.motivo_rechazo || 'Razón no especificada'
+    }));
+    
+    setFailedEntries(failedEntriesData);
+    
+    // Clear other reports
+    setParkingOccupation([]);
+    setVehicleLogs([]);
+    setFrequentUsers([]);
+    
+    // If no data returned, use mock data
+    if (failedEntriesData.length === 0) {
+      setFailedEntries([
+        {
+          date: '2025-04-01',
+          time: '08:23:45',
+          vehiclePlate: 'ABC123',
+          parkingName: parkingLots.find(p => p.parqueo_id === selectedParkingId)?.nombre || 'Parqueo',
+          reason: 'Vehículo no registrado'
         },
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch failed entries data');
-      }
-      const data = await response.json();
-      setFailedEntries(data);
-      // Limpiar otros reportes
-      setParkingOccupation([]);
-      setVehicleLogs([]);
-      setFrequentUsers([]);
-      if (data.length === 0) {
-        setFailedEntries([
-          {
-            date: '2025-04-01',
-            time: '08:23:45',
-            vehiclePlate: 'ABC123',
-            parkingName: parkingLots.find(p => p.parqueo_id.toString() === selectedParkingId.toString())?.nombre || 'Parqueo',
-            reason: 'Vehículo no registrado',
-          },
-          {
-            date: '2025-04-02',
-            time: '10:15:22',
-            vehiclePlate: 'XYZ789',
-            parkingName: parkingLots.find(p => p.parqueo_id.toString() === selectedParkingId.toString())?.nombre || 'Parqueo',
-            reason: 'Usuario no activo',
-          }
-        ]);
-      }
-    } catch (err) {
-      throw err;
+        {
+          date: '2025-04-02',
+          time: '10:15:22',
+          vehiclePlate: 'XYZ789',
+          parkingName: parkingLots.find(p => p.parqueo_id === selectedParkingId)?.nombre || 'Parqueo',
+          reason: 'Usuario no activo'
+        }
+      ]);
     }
-  };
+  } catch (err) {
+    console.error('Failed entries report error:', err);
+    throw new Error(`Failed to fetch failed entries data: ${err.message}`);
+  }
+};
 
   // Reporte del historial de uso personal
   const fetchUserHistoryReport = async () => {
@@ -323,49 +363,58 @@ const ParkingReportGenerator = () => {
   };
 
   // Reporte de movimientos de vehículos
-  const fetchVehicleLogs = async () => {
-    if (!selectedParkingId) {
-      setError('Por favor seleccione un parqueo');
-      return;
+// Update fetchVehicleLogs function
+const fetchVehicleLogs = async () => {
+  if (!startDate || !endDate) {
+    setError('Por favor seleccione fechas de inicio y fin');
+    return;
+  }
+  
+  setLoading(true);
+  setError('');
+  
+  try {
+    let queryParams = new URLSearchParams();
+    queryParams.append('startDate', startDate);
+    queryParams.append('endDate', endDate);
+    
+    // Only add parkingId to the query if a specific parking is selected
+    if (selectedParkingId) {
+      queryParams.append('parkingId', selectedParkingId);
     }
-    if (!startDate || !endDate) {
-      setError('Por favor seleccione fechas de inicio y fin');
-      return;
+    
+    if (vehiclePlate) {
+      queryParams.append('plate', vehiclePlate);
     }
-    setLoading(true);
-    setError('');
-    try {
-      let queryParams = new URLSearchParams();
-      queryParams.append('startDate', startDate);
-      queryParams.append('endDate', endDate);
-      if (selectedParkingId) {
-        queryParams.append('parkingId', selectedParkingId);
+    
+    // Use the correct endpoint
+    const url = 'http://localhost:3001/api/parking-logs';
+    
+    const response = await fetch(`${url}?${queryParams.toString()}`, {
+      method: 'GET',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
       }
-      if (vehiclePlate) {
-        queryParams.append('plate', vehiclePlate);
-      }
-      const response = await fetch(`http://localhost:3001/api/parking-logs?${queryParams.toString()}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch vehicle logs');
-      }
-      const data = await response.json();
-      setVehicleLogs(data);
-      // Limpiar otros reportes
-      setFrequentUsers([]);
-      setParkingOccupation([]);
-      setFailedEntries([]);
-    } catch (err) {
-      setError('Error fetching data: ' + err.message);
-    } finally {
-      setLoading(false);
+    });
+    
+    if (!response.ok) {
+      throw new Error(`Server returned ${response.status}: ${await response.text()}`);
     }
-  };
+    
+    const data = await response.json();
+    setVehicleLogs(data);
+    
+    // Clear other reports
+    setFrequentUsers([]);
+    setParkingOccupation([]);
+    setFailedEntries([]);
+  } catch (err) {
+    setError('Error fetching data: ' + err.message);
+  } finally {
+    setLoading(false);
+  }
+};
 
   // Reporte de usuarios frecuentes
   const fetchFrequentUsers = async () => {
