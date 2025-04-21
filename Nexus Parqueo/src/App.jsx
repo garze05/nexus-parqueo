@@ -74,7 +74,7 @@ function App() {
 
           // Add a new route for live parking monitoring
           <Route path="/live-parking" element={
-            <ProtectedRoute requiredPermission={[PERMISSIONS.CHECK_VEHICLES]}>
+            <ProtectedRoute requiredPermission={PERMISSIONS.CHECK_VEHICLES}>
               <LiveParkingMonitor />
             </ProtectedRoute>
           } />
