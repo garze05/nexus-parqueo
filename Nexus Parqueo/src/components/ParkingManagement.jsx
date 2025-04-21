@@ -51,18 +51,7 @@ const ParkingManagement = () => {
         throw new Error('Error al obtener los parqueos');
       }
       
-      // First get response as text to handle potential JSON parse errors
-      const responseText = await response.text();
-      let data;
-      
-      try {
-        // Try to parse the response text as JSON
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('Error parsing API response:', responseText);
-        throw new Error('Error en el formato de respuesta del servidor');
-      }
-      
+      const data = await response.json();
       setParkingLots(data);
     } catch (error) {
       console.error('Error fetching parking lots:', error);
@@ -121,18 +110,7 @@ const ParkingManagement = () => {
         throw new Error('Error al obtener la ocupación');
       }
       
-      // First get response as text to handle potential JSON parse errors
-      const responseText = await response.text();
-      let data;
-      
-      try {
-        // Try to parse the response text as JSON
-        data = JSON.parse(responseText);
-      } catch (parseError) {
-        console.error('Error parsing occupancy response:', responseText);
-        throw new Error('Error en el formato de respuesta de ocupación');
-      }
-      
+      const data = await response.json();
       setOccupancyData(data);
     } catch (error) {
       console.error('Error fetching occupancy:', error);
@@ -225,7 +203,7 @@ const ParkingManagement = () => {
     return true;
   };
   
-  // Handle form submission
+    // Handle form submission - with better error handling
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -246,9 +224,6 @@ const ParkingManagement = () => {
       
       const method = editMode ? 'PUT' : 'POST';
       
-      // Log the data being sent to help with debugging
-      console.log(`Sending ${method} request to ${url}:`, formData);
-      
       const response = await fetch(url, {
         method,
         headers: {
@@ -259,16 +234,20 @@ const ParkingManagement = () => {
         credentials: 'include'
       });
       
-      // Get response as text first to debug any JSON parsing issues
-      const responseText = await response.text();
+      // First check the Content-Type header
+      const contentType = response.headers.get('content-type');
       let responseData;
       
-      if (responseText) {
+      if (contentType && contentType.includes('application/json')) {
+        responseData = await response.json();
+      } else {
+        // If not JSON, read as text and try to parse, or use a default response
+        const text = await response.text();
         try {
-          responseData = JSON.parse(responseText);
-        } catch (parseError) {
-          console.error('Error parsing response:', responseText);
-          throw new Error('Error en el formato de respuesta del servidor');
+          responseData = JSON.parse(text);
+        } catch (e) {
+          console.error('Non-JSON response:', text);
+          responseData = { error: 'Error en el formato de respuesta del servidor' };
         }
       }
       
@@ -276,7 +255,7 @@ const ParkingManagement = () => {
         throw new Error(responseData?.error || 'Error al guardar el parqueo');
       }
       
-      setSuccess(editMode ? 'Parqueo actualizado exitosamente' : 'Parqueo creado exitosamente');
+      setSuccess(responseData.message || (editMode ? 'Parqueo actualizado exitosamente' : 'Parqueo creado exitosamente'));
       resetForm();
       fetchParkingLots();
       
@@ -311,20 +290,10 @@ const ParkingManagement = () => {
         credentials: 'include'
       });
       
-      // Get the response as text first to handle potential JSON parse errors
-      const responseText = await response.text();
+      const responseData = await response.json();
       
       if (!response.ok) {
-        let errorMessage = 'Error al eliminar el parqueo';
-        try {
-          if (responseText) {
-            const errorData = JSON.parse(responseText);
-            errorMessage = errorData.error || errorMessage;
-          }
-        } catch (e) {
-          console.error('Invalid error response:', responseText);
-        }
-        throw new Error(errorMessage);
+        throw new Error(responseData?.error || 'Error al eliminar el parqueo');
       }
       
       setSuccess('Parqueo eliminado exitosamente');

@@ -28,12 +28,24 @@ const SALT_ROUNDS = 10;
 const JWT_SECRET = process.env.JWT_SECRET || 'UlacitUniversidadPrivadaNumeroUnoEnCentroamerica';
 const JWT_EXPIRES_IN = '2h';
 
-// Helper function for SQL queries
+// Helper function for SQL queries - with better error handling
 const queryAsync = (query, params = []) => {
     return new Promise((resolve, reject) => {
+        // For debugging
+        console.log('Executing query:', query);
+        console.log('With params:', params);
+        
         sql.query(connectionString, query, params, (err, rows) => {
-            if (err) reject(err);
-            else resolve(rows);
+            if (err) {
+                console.error('SQL Error:', {
+                    error: err,
+                    query: query,
+                    params: params
+                });
+                reject(err);
+            } else {
+                resolve(rows || []);
+            }
         });
     });
 };
@@ -1092,93 +1104,50 @@ app.get('/api/parkings/:id', authenticateToken, async (req, res) => {
     }
 });
 
-//Create parking lot
+
+// Create parking lot
 app.post('/api/parkings', authenticateToken, hasRole('ADMINISTRADOR'), async (req, res) => {
     try {
-        const { 
-            nombre, 
-            capacidad_regulares, 
-            capacidad_motos, 
-            capacidad_ley7600, 
-            activo 
-        } = req.body;
+        // Log the incoming request for debugging
+        console.log('Admin parking creation request:', req.body);
         
-        // Validate input
+        // Extract fields from request body
+        const { nombre, capacidad_regulares, capacidad_motos, capacidad_ley7600, activo } = req.body;
+        
+        // Validate required fields
         if (!nombre) {
             return res.status(400).json({ error: 'El nombre del parqueo es obligatorio' });
         }
         
-        if (capacidad_regulares < 0 || capacidad_motos < 0 || capacidad_ley7600 < 0) {
+        // Ensure proper data type conversion
+        const capacidadRegulares = parseInt(capacidad_regulares, 10) || 0;
+        const capacidadMotos = parseInt(capacidad_motos, 10) || 0;
+        const capacidadLey7600 = parseInt(capacidad_ley7600, 10) || 0;
+        
+        if (capacidadRegulares < 0 || capacidadMotos < 0 || capacidadLey7600 < 0) {
             return res.status(400).json({ error: 'Las capacidades no pueden ser valores negativos' });
         }
         
-        // Step 1: Insert the parking lot
+        // Insert the parking lot - using positional parameters (?)
         const insertQuery = `
             INSERT INTO [dbo].[Parqueo] (
-                nombre, 
-                capacidad_regulares, 
-                capacidad_motos, 
-                capacidad_ley7600, 
-                activo
+                nombre, capacidad_regulares, capacidad_motos, capacidad_ley7600, activo
             ) VALUES (?, ?, ?, ?, ?)
         `;
         
+        // IMPORTANT: Pass parameters as a simple array of values, not objects
         await queryAsync(insertQuery, [
             nombre, 
-            parseInt(capacidad_regulares, 10), 
-            parseInt(capacidad_motos, 10), 
-            parseInt(capacidad_ley7600, 10), 
+            capacidadRegulares, 
+            capacidadMotos, 
+            capacidadLey7600, 
             activo ? 1 : 0
         ]);
         
-        // Step 2: Get the newly created parking lot
-        const selectQuery = `
-            SELECT TOP 1
-                parqueo_id, 
-                nombre, 
-                capacidad_regulares, 
-                capacidad_motos, 
-                capacidad_ley7600, 
-                activo
-            FROM [dbo].[Parqueo]
-            WHERE nombre = ?
-            ORDER BY parqueo_id DESC
-        `;
-        
-        const result = await queryAsync(selectQuery, [nombre]);
-        
-        if (!result || result.length === 0) {
-            throw new Error('No se pudo recuperar el parqueo creado');
-        }
-        
-        const newParking = result[0];
-        
-        // Step 3: Initialize the occupancy record
-        await queryAsync(`
-            INSERT INTO [dbo].[OcupacionParqueo] (
-                parqueo_id,
-                espacios_regulares_ocupados,
-                espacios_motos_ocupados,
-                espacios_ley7600_ocupados,
-                fecha_actualizacion
-            ) VALUES (?, 0, 0, 0, GETDATE())
-        `, [newParking.parqueo_id]);
-        
-        // Step 4: Create a clean response object
-        const response = {
-            parqueo_id: newParking.parqueo_id,
-            nombre: newParking.nombre,
-            capacidad_regulares: parseInt(newParking.capacidad_regulares, 10),
-            capacidad_motos: parseInt(newParking.capacidad_motos, 10),
-            capacidad_ley7600: parseInt(newParking.capacidad_ley7600, 10),
-            activo: newParking.activo === 1 ? true : false
-        };
-        
-        // Send JSON response
-        res.status(201).json(response);
+        res.status(201).json({ message: 'Parqueo creado exitosamente' });
     } catch (err) {
         console.error('Database Error:', err);
-        res.status(500).json({ error: 'Error interno del servidor' });
+        return res.status(500).json({ error: 'Error interno del servidor: ' + err.message });
     }
 });
 
@@ -1188,7 +1157,6 @@ app.put('/api/parkings/:id', authenticateToken, hasRole('ADMINISTRADOR'), async 
         const { id } = req.params;
         const { 
             nombre, 
-            ubicacion, 
             capacidad_regulares, 
             capacidad_motos, 
             capacidad_ley7600, 
@@ -1200,7 +1168,12 @@ app.put('/api/parkings/:id', authenticateToken, hasRole('ADMINISTRADOR'), async 
             return res.status(400).json({ error: 'El nombre del parqueo es obligatorio' });
         }
         
-        if (capacidad_regulares < 0 || capacidad_motos < 0 || capacidad_ley7600 < 0) {
+        // Ensure proper data type conversion
+        const capacidadRegulares = parseInt(capacidad_regulares, 10) || 0;
+        const capacidadMotos = parseInt(capacidad_motos, 10) || 0;
+        const capacidadLey7600 = parseInt(capacidad_ley7600, 10) || 0;
+        
+        if (capacidadRegulares < 0 || capacidadMotos < 0 || capacidadLey7600 < 0) {
             return res.status(400).json({ error: 'Las capacidades no pueden ser valores negativos' });
         }
         
@@ -1217,7 +1190,6 @@ app.put('/api/parkings/:id', authenticateToken, hasRole('ADMINISTRADOR'), async 
             UPDATE Parqueo 
             SET 
                 nombre = ?, 
-                ubicacion = ?, 
                 capacidad_regulares = ?, 
                 capacidad_motos = ?, 
                 capacidad_ley7600 = ?, 
@@ -1227,10 +1199,9 @@ app.put('/api/parkings/:id', authenticateToken, hasRole('ADMINISTRADOR'), async 
         
         await queryAsync(updateQuery, [
             nombre, 
-            ubicacion || null, 
-            capacidad_regulares, 
-            capacidad_motos, 
-            capacidad_ley7600, 
+            capacidadRegulares, 
+            capacidadMotos, 
+            capacidadLey7600, 
             activo ? 1 : 0,
             id
         ]);
@@ -1240,7 +1211,6 @@ app.put('/api/parkings/:id', authenticateToken, hasRole('ADMINISTRADOR'), async 
             SELECT 
                 parqueo_id, 
                 nombre, 
-                ubicacion,
                 capacidad_regulares, 
                 capacidad_motos, 
                 capacidad_ley7600, 
@@ -1251,10 +1221,14 @@ app.put('/api/parkings/:id', authenticateToken, hasRole('ADMINISTRADOR'), async 
         
         const updatedParking = await queryAsync(selectQuery, [id]);
         
+        if (!updatedParking || updatedParking.length === 0) {
+            return res.status(404).json({ error: 'No se pudo recuperar el parqueo actualizado' });
+        }
+        
         res.json(updatedParking[0]);
     } catch (err) {
         console.error('Database Error:', err);
-        res.status(500).json({ error: 'Error interno del servidor' });
+        res.status(500).json({ error: 'Error interno del servidor: ' + err.message });
     }
 });
 
@@ -1371,5 +1345,26 @@ app.get('/api/occupancy/:parkingId', authenticateToken, async (req, res) => {
     } catch (error) {
         console.error('Error fetching parking occupancy:', error);
         return res.status(500).json({ error: 'Error al obtener la ocupación del parqueo' });
+    }
+});
+
+// Get all parking lots
+app.get('/api/parkings', authenticateToken, async (req, res) => {
+    try {
+        const query = `
+            SELECT parqueo_id, nombre, capacidad_regulares, 
+                   capacidad_motos, capacidad_ley7600, activo
+            FROM Parqueo
+            WHERE activo = 1
+        `;
+        
+        const parkings = await queryAsync(query);
+        
+        res.setHeader('Content-Type', 'application/json');
+        res.json(parkings);
+    } catch (err) {
+        console.error('Database Error:', err);
+        res.setHeader('Content-Type', 'application/json');
+        res.status(500).json({ error: 'Error interno del servidor' });
     }
 });
