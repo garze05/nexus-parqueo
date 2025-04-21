@@ -5,7 +5,7 @@ export const ROLES = {
     STUDENT: 'ESTUDIANTE'
   };
   
-export const PERMISSIONS = {
+  export const PERMISSIONS = {
     CREATE_USER: 'create_user',
     DELETE_USER: 'delete_user',
     VIEW_DASHBOARD: 'view_dashboard',
@@ -18,11 +18,12 @@ export const PERMISSIONS = {
     ACCESS_REPORTS: 'access_reports',
     SYSTEM_SETTINGS: 'system_settings',
     VIEW_LOGS: 'view_logs',
-    CHECK_VEHICLES: 'check_vehicles'
-};
+    CHECK_VEHICLES: 'check_vehicles',
+    VIEW_OWN: 'view_own'
+  };
   
-// Role-permission mapping
-export const ROLE_PERMISSIONS = {
+  // Role-permission mapping
+  export const ROLE_PERMISSIONS = {
     [ROLES.ADMIN]: [PERMISSIONS.CREATE_USER,
         PERMISSIONS.DELETE_USER,
         PERMISSIONS.VIEW_DASHBOARD,
@@ -35,14 +36,16 @@ export const ROLE_PERMISSIONS = {
         PERMISSIONS.ACCESS_REPORTS,
         PERMISSIONS.SYSTEM_SETTINGS,
         PERMISSIONS.VIEW_LOGS,
-        PERMISSIONS.CHECK_VEHICLES],
+        PERMISSIONS.CHECK_VEHICLES,
+        PERMISSIONS.VIEW_OWN],
         
     [ROLES.STUDENT]: [
         PERMISSIONS.VIEW_DASHBOARD, 
         PERMISSIONS.EDIT_PROFILE, 
         PERMISSIONS.VIEW_PUBLIC,
         PERMISSIONS.VIEW_OCCUPATION,
-        PERMISSIONS.CHECK_VEHICLES
+        PERMISSIONS.CHECK_VEHICLES,
+        PERMISSIONS.VIEW_OWN
     ],
     [ROLES.STAFF]: [
         PERMISSIONS.VIEW_DASHBOARD, 
@@ -51,16 +54,18 @@ export const ROLE_PERMISSIONS = {
         PERMISSIONS.VIEW_OCCUPATION,
         PERMISSIONS.VEHICLE_ENTRY_EXIT,
         PERMISSIONS.ACCESS_REPORTS,
-        PERMISSIONS.CHECK_VEHICLES
+        PERMISSIONS.CHECK_VEHICLES,
+        PERMISSIONS.VIEW_OWN
     ],
     [ROLES.SECURITY]:[
         PERMISSIONS.VIEW_OCCUPATION,
         PERMISSIONS.VIEW_DASHBOARD,
         PERMISSIONS.VIEW_PUBLIC,
         PERMISSIONS.VEHICLE_ENTRY_EXIT,
-        PERMISSIONS.CHECK_VEHICLES
+        PERMISSIONS.CHECK_VEHICLES,
+        PERMISSIONS.VIEW_OWN
     ]
-
-
-
-};
+  
+  
+  
+  };
