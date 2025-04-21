@@ -17,6 +17,7 @@ import UserManagement from './components/UserManagement';
 import CheckVehiculos from './components/CheckVehiculos';
 import LiveParkingMonitor from './components/LiveParkingMonitor';
 import ParkingReportGenerator from './components/ParkingReportGenerator';
+import ParkingManagement from './components/ParkingManagement';
 
 // import UserManagement from './components/UserManagement';
 import History from './components/History';
@@ -59,13 +60,9 @@ function App() {
             </ProtectedRoute>
           } />
          
-          <Route path="/parking-lots" element={
+         <Route path="/parking-lots" element={
             <ProtectedRoute requiredRole={ROLES.ADMIN}>
-              {/* <ParkingManagement /> */}
-              <div className="p-8 text-center">
-                <h2 className="text-2xl font-bold mb-4">Gestión de Parqueos</h2>
-                <p className="text-gray-600">Esta sección está en desarrollo.</p>
-              </div>
+              <ParkingManagement />
             </ProtectedRoute>
           } />
           

@@ -920,7 +920,6 @@ app.get('/api/failed-entries', authenticateToken, hasRole('ADMINISTRADOR'), asyn
 });
 
 
-// Add these endpoints to your Express app in server.js
 
 // Get parking logs with filtering
 app.get('/api/parking-logs', authenticateToken, async (req, res) => {
@@ -1062,30 +1061,315 @@ app.listen(PORT, () => {
     console.log(`Server running on port ${PORT}`);
 });
 
-const fetchOccupationReport = async () => {
-    let queryParams = new URLSearchParams();
-    queryParams.append('startDate', startDate);
-    queryParams.append('endDate', endDate);
-    // Si el parqueo está seleccionado, se usa el endpoint para un parqueo específico
-    const endpoint = selectedParkingId
-      ? `http://localhost:3001/api/parkings/${selectedParkingId}/occupation`
-      : `http://localhost:3001/api/parkings/occupation`;
+// NEW: Get a specific parking lot by ID
+app.get('/api/parkings/:id', authenticateToken, async (req, res) => {
+    const { id } = req.params;
+    
     try {
-      const response = await fetch(`${endpoint}?${queryParams.toString()}`, {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`
+        const query = `
+            SELECT 
+                parqueo_id, 
+                nombre, 
+                ubicacion,
+                capacidad_regulares, 
+                capacidad_motos, 
+                capacidad_ley7600, 
+                activo
+            FROM Parqueo
+            WHERE parqueo_id = ?
+        `;
+        
+        const parkings = await queryAsync(query, [id]);
+        
+        if (!parkings || parkings.length === 0) {
+            return res.status(404).json({ error: 'Parqueo no encontrado' });
         }
-      });
-      if (!response.ok) {
-        throw new Error('Failed to fetch occupation data');
-      }
-      const data = await response.json();
-      setParkingOccupation(data);
-      // Limpiar otros reportes según sea el caso…
+        
+        res.json(parkings[0]);
     } catch (err) {
-      setError('Error fetching data: ' + err.message);
+        console.error('Database Error:', err);
+        return res.status(500).json({ error: 'Error interno del servidor' });
     }
-  };
-  
+});
+
+//Create parking lot
+app.post('/api/parkings', authenticateToken, hasRole('ADMINISTRADOR'), async (req, res) => {
+    try {
+        const { 
+            nombre, 
+            capacidad_regulares, 
+            capacidad_motos, 
+            capacidad_ley7600, 
+            activo 
+        } = req.body;
+        
+        // Validate input
+        if (!nombre) {
+            return res.status(400).json({ error: 'El nombre del parqueo es obligatorio' });
+        }
+        
+        if (capacidad_regulares < 0 || capacidad_motos < 0 || capacidad_ley7600 < 0) {
+            return res.status(400).json({ error: 'Las capacidades no pueden ser valores negativos' });
+        }
+        
+        // Step 1: Insert the parking lot
+        const insertQuery = `
+            INSERT INTO [dbo].[Parqueo] (
+                nombre, 
+                capacidad_regulares, 
+                capacidad_motos, 
+                capacidad_ley7600, 
+                activo
+            ) VALUES (?, ?, ?, ?, ?)
+        `;
+        
+        await queryAsync(insertQuery, [
+            nombre, 
+            parseInt(capacidad_regulares, 10), 
+            parseInt(capacidad_motos, 10), 
+            parseInt(capacidad_ley7600, 10), 
+            activo ? 1 : 0
+        ]);
+        
+        // Step 2: Get the newly created parking lot
+        const selectQuery = `
+            SELECT TOP 1
+                parqueo_id, 
+                nombre, 
+                capacidad_regulares, 
+                capacidad_motos, 
+                capacidad_ley7600, 
+                activo
+            FROM [dbo].[Parqueo]
+            WHERE nombre = ?
+            ORDER BY parqueo_id DESC
+        `;
+        
+        const result = await queryAsync(selectQuery, [nombre]);
+        
+        if (!result || result.length === 0) {
+            throw new Error('No se pudo recuperar el parqueo creado');
+        }
+        
+        const newParking = result[0];
+        
+        // Step 3: Initialize the occupancy record
+        await queryAsync(`
+            INSERT INTO [dbo].[OcupacionParqueo] (
+                parqueo_id,
+                espacios_regulares_ocupados,
+                espacios_motos_ocupados,
+                espacios_ley7600_ocupados,
+                fecha_actualizacion
+            ) VALUES (?, 0, 0, 0, GETDATE())
+        `, [newParking.parqueo_id]);
+        
+        // Step 4: Create a clean response object
+        const response = {
+            parqueo_id: newParking.parqueo_id,
+            nombre: newParking.nombre,
+            capacidad_regulares: parseInt(newParking.capacidad_regulares, 10),
+            capacidad_motos: parseInt(newParking.capacidad_motos, 10),
+            capacidad_ley7600: parseInt(newParking.capacidad_ley7600, 10),
+            activo: newParking.activo === 1 ? true : false
+        };
+        
+        // Send JSON response
+        res.status(201).json(response);
+    } catch (err) {
+        console.error('Database Error:', err);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// NEW: Update an existing parking lot
+app.put('/api/parkings/:id', authenticateToken, hasRole('ADMINISTRADOR'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        const { 
+            nombre, 
+            ubicacion, 
+            capacidad_regulares, 
+            capacidad_motos, 
+            capacidad_ley7600, 
+            activo 
+        } = req.body;
+        
+        // Validate input
+        if (!nombre) {
+            return res.status(400).json({ error: 'El nombre del parqueo es obligatorio' });
+        }
+        
+        if (capacidad_regulares < 0 || capacidad_motos < 0 || capacidad_ley7600 < 0) {
+            return res.status(400).json({ error: 'Las capacidades no pueden ser valores negativos' });
+        }
+        
+        // Check if parking exists
+        const checkQuery = "SELECT COUNT(*) AS count FROM Parqueo WHERE parqueo_id = ?";
+        const checkResult = await queryAsync(checkQuery, [id]);
+        
+        if (checkResult[0].count === 0) {
+            return res.status(404).json({ error: 'Parqueo no encontrado' });
+        }
+        
+        // Update the parking lot
+        const updateQuery = `
+            UPDATE Parqueo 
+            SET 
+                nombre = ?, 
+                ubicacion = ?, 
+                capacidad_regulares = ?, 
+                capacidad_motos = ?, 
+                capacidad_ley7600 = ?, 
+                activo = ?
+            WHERE parqueo_id = ?
+        `;
+        
+        await queryAsync(updateQuery, [
+            nombre, 
+            ubicacion || null, 
+            capacidad_regulares, 
+            capacidad_motos, 
+            capacidad_ley7600, 
+            activo ? 1 : 0,
+            id
+        ]);
+        
+        // Get the updated parking lot
+        const selectQuery = `
+            SELECT 
+                parqueo_id, 
+                nombre, 
+                ubicacion,
+                capacidad_regulares, 
+                capacidad_motos, 
+                capacidad_ley7600, 
+                activo
+            FROM Parqueo
+            WHERE parqueo_id = ?
+        `;
+        
+        const updatedParking = await queryAsync(selectQuery, [id]);
+        
+        res.json(updatedParking[0]);
+    } catch (err) {
+        console.error('Database Error:', err);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// NEW: Delete a parking lot
+app.delete('/api/parkings/:id', authenticateToken, hasRole('ADMINISTRADOR'), async (req, res) => {
+    try {
+        const { id } = req.params;
+        
+        // Check if parking exists
+        const checkQuery = "SELECT COUNT(*) AS count FROM Parqueo WHERE parqueo_id = ?";
+        const checkResult = await queryAsync(checkQuery, [id]);
+        
+        if (checkResult[0].count === 0) {
+            return res.status(404).json({ error: 'Parqueo no encontrado' });
+        }
+        
+        // Check for references in other tables
+        const checkBitacoraQuery = "SELECT COUNT(*) AS count FROM Bitacora WHERE parqueo_id = ?";
+        const checkVigilanciaQuery = "SELECT COUNT(*) AS count FROM Vigilancia WHERE parqueo_id = ?";
+        
+        const bitacoraResult = await queryAsync(checkBitacoraQuery, [id]);
+        const vigilanciaResult = await queryAsync(checkVigilanciaQuery, [id]);
+        
+        if (bitacoraResult[0].count > 0 || vigilanciaResult[0].count > 0) {
+            return res.status(400).json({ 
+                error: 'No se puede eliminar el parqueo porque está siendo utilizado en registros de bitácora o vigilancia' 
+            });
+        }
+        
+        // Delete from OcupacionParqueo first (foreign key constraint)
+        await queryAsync('DELETE FROM OcupacionParqueo WHERE parqueo_id = ?', [id]);
+        
+        // Then delete the parking lot
+        await queryAsync('DELETE FROM Parqueo WHERE parqueo_id = ?', [id]);
+        
+        res.json({ message: 'Parqueo eliminado exitosamente' });
+    } catch (err) {
+        console.error('Database Error:', err);
+        res.status(500).json({ error: 'Error interno del servidor' });
+    }
+});
+
+// NEW: Get occupancy for a specific parking lot
+app.get('/api/occupancy/:parkingId', authenticateToken, async (req, res) => {
+    try {
+        const { parkingId } = req.params;
+        
+        // Get the parking lot details
+        const parkingQuery = `
+            SELECT 
+                parqueo_id, 
+                nombre,
+                capacidad_regulares, 
+                capacidad_motos, 
+                capacidad_ley7600
+            FROM Parqueo 
+            WHERE parqueo_id = ?
+        `;
+        
+        const parkingResult = await queryAsync(parkingQuery, [parkingId]);
+        
+        if (!parkingResult || parkingResult.length === 0) {
+            return res.status(404).json({ error: 'Parqueo no encontrado' });
+        }
+        
+        const parking = parkingResult[0];
+        
+        // Get the current occupancy
+        const occupancyQuery = `
+            SELECT 
+                espacios_regulares_ocupados, 
+                espacios_motos_ocupados, 
+                espacios_ley7600_ocupados, 
+                fecha_actualizacion 
+            FROM OcupacionParqueo 
+            WHERE parqueo_id = ? 
+            ORDER BY fecha_actualizacion DESC
+        `;
+        
+        const occupancyResult = await queryAsync(occupancyQuery, [parkingId]);
+        
+        let occupancy;
+        
+        if (!occupancyResult || occupancyResult.length === 0) {
+            // If no occupancy record exists, create a default one with zero occupancy
+            occupancy = {
+                espacios_regulares_ocupados: 0,
+                espacios_motos_ocupados: 0,
+                espacios_ley7600_ocupados: 0,
+                fecha_actualizacion: new Date()
+            };
+            
+            // Insert initial occupancy record
+            await queryAsync(`
+                INSERT INTO OcupacionParqueo (
+                    parqueo_id,
+                    espacios_regulares_ocupados,
+                    espacios_motos_ocupados,
+                    espacios_ley7600_ocupados,
+                    fecha_actualizacion
+                ) VALUES (?, 0, 0, 0, GETDATE())
+            `, [parkingId]);
+        } else {
+            occupancy = occupancyResult[0];
+        }
+        
+        // Combine parking details with occupancy
+        const response = {
+            ...parking,
+            ...occupancy
+        };
+        
+        return res.json(response);
+    } catch (error) {
+        console.error('Error fetching parking occupancy:', error);
+        return res.status(500).json({ error: 'Error al obtener la ocupación del parqueo' });
+    }
+});
