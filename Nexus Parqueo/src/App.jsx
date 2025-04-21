@@ -178,14 +178,14 @@ function App() {
           
           {/* Staff and student routes */}
           <Route path="/my-vehicles" element={
-            <ProtectedRoute requiredPermission={PERMISSIONS.EDIT_PROFILE}>
-              <MyVehicles />
+            <ProtectedRoute requiredPermission={ROLES.STUDENT}>
+              <MyVehicles/>
             </ProtectedRoute>
           } />
           
           <Route path="/history" element={
           <ProtectedRoute requiredRole={[ROLES.ADMIN, ROLES.STAFF, ROLES.STUDENT, ROLES.SECURITY]}>
-            <History />
+            <History/>
           </ProtectedRoute>
 }         />
           

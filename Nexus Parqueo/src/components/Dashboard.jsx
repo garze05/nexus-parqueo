@@ -191,6 +191,13 @@ const Dashboard = () => {
                   <span className="text-2xl mb-2">📅</span>
                   <span className="font-medium text-center">Historial de Uso</span>
                 </button>
+                <button 
+                  onClick={() => navigate('/my-vehicles')}
+                  className="p-4 bg-blue-100 rounded-lg hover:bg-blue-200 transition-colors flex flex-col items-center justify-center h-32"
+                >
+                  <span className="text-2xl mb-2">🚗</span>
+                  <span className="font-medium text-center">Mis Vehiculos</span>
+                </button>
               </>
             )}
           </div>
