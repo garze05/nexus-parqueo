@@ -84,20 +84,36 @@ const MyVehicles = () => {
     
     try {
       const token = localStorage.getItem('token');
+      
+      // Improved error handling and request
       const response = await fetch('http://localhost:3001/api/vehicles', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        credentials: 'include',
         body: JSON.stringify(formData)
       });
       
+      // Check content type of response
+      const contentType = response.headers.get("content-type");
+      
       if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || 'Error al registrar el vehículo');
+        if (contentType && contentType.includes("application/json")) {
+          // Parse error as JSON if that's what we received
+          const errorData = await response.json();
+          throw new Error(errorData.error || `Error: ${response.status} ${response.statusText}`);
+        } else {
+          // Handle non-JSON error response
+          const errorText = await response.text();
+          console.error("Server returned non-JSON response:", errorText);
+          throw new Error(`Error del servidor: ${response.status} ${response.statusText}`);
+        }
       }
+      
+      // Process successful response
+      const data = await response.json();
+      console.log("Vehicle registered successfully:", data);
       
       // Reset form
       setFormData({
@@ -115,8 +131,7 @@ const MyVehicles = () => {
       const vehiclesResponse = await fetch('http://localhost:3001/api/vehicles', {
         headers: {
           'Authorization': `Bearer ${token}`
-        },
-        credentials: 'include'
+        }
       });
       
       if (vehiclesResponse.ok) {
