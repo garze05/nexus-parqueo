@@ -155,17 +155,6 @@ const MyVehicles = () => {
             <h2 className="text-2xl font-semibold">
               Vehículos Registrados
             </h2>
-            <button
-              onClick={() => setShowAddForm(!showAddForm)}
-              className={`px-4 py-2 rounded font-medium shadow-sm ${
-                vehicles.filter(v => v.activo).length >= 2
-                  ? 'bg-gray-300 cursor-not-allowed'
-                  : 'bg-blue-600 hover:bg-blue-700 text-white'
-              }`}
-              disabled={vehicles.filter(v => v.activo).length >= 2}
-            >
-              {showAddForm ? 'Cancelar' : 'Agregar Vehículo'}
-            </button>
           </div>
           
           {success && (
@@ -237,6 +226,7 @@ const MyVehicles = () => {
                         }
                       })}
                       required
+                      maxLength={9}
                       className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                       placeholder="Ej. ABC123"
                     />
@@ -306,7 +296,7 @@ const MyVehicles = () => {
             </div>
           ) : vehicles.length === 0 ? (
             <div className="text-center py-8 text-gray-500">
-              No tiene vehículos registrados.
+              No tiene vehículos registrados. Consultar con Administración para registrar vehiculos.
             </div>
           ) : (
             <div className="overflow-x-auto">
