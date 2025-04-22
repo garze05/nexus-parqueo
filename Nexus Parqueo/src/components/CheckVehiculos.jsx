@@ -12,7 +12,7 @@ const CheckVehiculos = () => {
 
   const validatePlate = (plate) => {
     // Regex para placas ticas
-    const plateRegex = /^[A-Z0-9]{1,7}$/;
+    const plateRegex = /^[A-Z0-9]{1,9}$/;
     return plateRegex.test(plate);
   };
 
@@ -165,7 +165,7 @@ const CheckVehiculos = () => {
                 required
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 placeholder="Ingrese la placa para verificar"
-                maxLength={7}
+                maxLength={10}
               />
               <small className="text-gray-500 mt-1 block">Formato: ABC123, 123456, D1234, M123456</small>
             </div>
